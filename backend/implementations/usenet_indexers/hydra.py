@@ -8,10 +8,8 @@ from typing import List
 from xml.etree import ElementTree
 
 from backend.base.definitions import DownloadType, SearchResultData, SearchSource
-from backend.base.file_extraction import (extract_issue_number,
-                                          extract_year_from_date,
-                                          extract_volume_number)
-from backend.base.helpers import AsyncSession
+from backend.base.file_extraction import extract_issue_number, extract_volume_number
+from backend.base.helpers import AsyncSession, extract_year_from_date
 from backend.base.logging import LOGGER
 from backend.implementations.external_clients import ExternalClients
 from backend.internals.settings import Settings

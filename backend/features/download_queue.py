@@ -7,6 +7,7 @@ from os import listdir
 from os.path import basename, join
 from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Tuple, Type, Union
 
+import aiohttp
 from typing_extensions import assert_never
 
 from backend.base.custom_exceptions import (ClientNotWorking,
@@ -33,6 +34,7 @@ from backend.implementations.download_clients import (BaseDirectDownload,
                                                       UsenetDownload)
 from backend.implementations.external_clients import ExternalClients
 from backend.implementations.getcomics import GetComicsPage
+from backend.implementations.usenet_clients.nzb_validation import validate_nzb_url_response
 from backend.implementations.volumes import Issue
 from backend.internals.db import get_db, iter_commit
 from backend.internals.server import (AddedToQueueEvent, QueueStatusEvent,
@@ -414,6 +416,8 @@ class DownloadHandler(metaclass=Singleton):
         """
         if link.startswith(Constants.GC_SITE_URL):
             return 'gc'
+        elif link.endswith('.nzb') or 'nzbhydra' in link.lower() or '/api?t=' in link:
+            return 'nzb'
         return None
 
     def link_in_queue(self, link: str) -> bool:
@@ -515,6 +519,77 @@ class DownloadHandler(metaclass=Singleton):
                     f'Unable to extract download links from source; fail_reason="{e.reason.value}"'
                 )
                 return [], e.reason
+
+        elif link_type == 'nzb':
+            # Handle Usenet/NZB download
+            LOGGER.info(f'Processing NZB download from: {link}')
+
+            try:
+                # Fetch the NZB file
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(link, timeout=aiohttp.ClientTimeout(total=Constants.REQUEST_TIMEOUT)) as response:
+                        if not response.ok:
+                            LOGGER.error(f"Failed to fetch NZB from {link}: {response.status}")
+                            add_to_blocklist(
+                                web_link=link,
+                                web_title=None,
+                                web_sub_title=None,
+                                download_link=link,
+                                source=DownloadSource.USENET,
+                                volume_id=volume_id,
+                                issue_id=issue_id,
+                                reason=BlocklistReason.LINK_BROKEN
+                            )
+                            return [], EnqueuingDownloadFailureReason.LINK_BROKEN
+
+                        nzb_content = await response.read()
+
+                        # Validate NZB
+                        try:
+                            validate_nzb_url_response(nzb_content, link)
+                        except Exception as e:
+                            LOGGER.error(f"Invalid NZB file from {link}: {e}")
+                            add_to_blocklist(
+                                web_link=link,
+                                web_title=None,
+                                web_sub_title=None,
+                                download_link=link,
+                                source=DownloadSource.USENET,
+                                volume_id=volume_id,
+                                issue_id=issue_id,
+                                reason=BlocklistReason.LINK_BROKEN
+                            )
+                            return [], EnqueuingDownloadFailureReason.LINK_BROKEN
+
+                # Get available Sabnzbd clients
+                usenet_clients = ExternalClients.get_all_by_type('Sabnzbd')
+                if not usenet_clients:
+                    LOGGER.error('No Sabnzbd clients configured')
+                    return [], EnqueuingDownloadFailureReason.NO_WORKING_LINKS
+
+                # Create UsenetDownload object
+                # Select least-used client (UsenetDownload will handle this in __init__)
+                downloads = [
+                    UsenetDownload(
+                        download_link=link,
+                        volume_id=volume_id,
+                        covered_issues=issue_id,
+                        source_type=DownloadSource.USENET,
+                        source_name='NZBHydra2',
+                        web_link=link,
+                        web_title=None,  # Could extract from NZB filename
+                        web_sub_title=None,
+                        forced_match=force_match
+                    )
+                ]
+                LOGGER.info(f'Created Usenet download for volume {volume_id}')
+
+            except aiohttp.ClientError as e:
+                LOGGER.warning(f"Network error fetching NZB: {e}")
+                return [], EnqueuingDownloadFailureReason.LINK_BROKEN
+            except Exception as e:
+                LOGGER.warning(f"Error processing NZB: {e}")
+                return [], EnqueuingDownloadFailureReason.LINK_BROKEN
 
         result = self.__prepare_downloads_for_queue(
             downloads,
