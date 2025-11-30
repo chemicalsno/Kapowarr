@@ -308,6 +308,8 @@
 	width: 5rem;
 	height: 2rem;
 	display: flex;
+	align-items: center;
+	justify-content: center;
 	overflow: hidden;
 	background-color: var(--tool-bar-color);
 	transition: background-color 300ms linear;

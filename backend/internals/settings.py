@@ -485,6 +485,29 @@ class Settings(metaclass=Singleton):
             ):
                 raise InvalidKeyValue(key, value)
 
+        elif key == 'nzbhydra_base_url':
+            converted_value = value.strip() if value else ''
+            if converted_value:
+                converted_value = normalise_base_url(converted_value)
+
+        elif key == 'nzbhydra_api_key':
+            converted_value = value.strip() if value else ''
+
+        elif key == 'nzbhydra_categories':
+            converted_value = value.strip() if value else ''
+
+        elif key == 'sabnzbd_category':
+            converted_value = value.strip() if value else ''
+
+        elif key == 'sabnzbd_priority':
+            from backend.implementations.usenet_clients.Sabnzbd import Sabnzbd
+
+            allowed_priorities = list(Sabnzbd.PRIORITY_MAPPING.keys())
+            if value not in allowed_priorities:
+                raise InvalidKeyValue(key, value)
+
+            converted_value = value
+
         else:
             from backend.implementations.naming import (NAMING_MAPPING,
                                                         check_format)

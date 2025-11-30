@@ -118,6 +118,7 @@
 /* Footer */
 .window-footer {
 	justify-content: flex-end;
+	gap: 0.5rem;
 	border-top: 2px solid var(--border-color);
 }
 
