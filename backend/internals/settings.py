@@ -461,13 +461,14 @@ class Settings(metaclass=Singleton):
                 for s in GCDownloadSource._member_map_.values()
             ]
 
+            # Validate that all entries are valid sources
             for entry in value:
                 if entry not in available:
                     raise InvalidKeyValue(key, value)
 
-            for entry in available:
-                if entry not in value:
-                    raise InvalidKeyValue(key, value)
+            # Require at least one source
+            if not value:
+                raise InvalidKeyValue(key, value)
 
             converted_value = value
 
