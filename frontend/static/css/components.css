@@ -1,0 +1,177 @@
+/**
+ * Reusable UI Components
+ */
+
+/* ===========================
+   Alert Component
+   =========================== */
+
+.alert {
+    display: flex;
+    gap: 12px;
+    padding: 16px 20px;
+    border-radius: var(--radius-md, 6px);
+    margin: 20px auto;
+    max-width: 600px;
+    border-left: 4px solid;
+    box-shadow: var(--shadow-sm, 0 2px 4px rgba(0,0,0,0.1));
+}
+
+.alert-info {
+    background-color: #d1ecf1;
+    border-left-color: var(--info-color, #17a2b8);
+    color: #0c5460;
+}
+
+.alert-success {
+    background-color: #d4edda;
+    border-left-color: var(--success-color, #28a745);
+    color: #155724;
+}
+
+.alert-warning {
+    background-color: #fff3cd;
+    border-left-color: var(--warning-color, #ffc107);
+    color: #856404;
+}
+
+.alert-danger {
+    background-color: #f8d7da;
+    border-left-color: var(--danger-color, #dc3545);
+    color: #721c24;
+}
+
+.alert-content {
+    flex: 1;
+}
+
+.alert-title {
+    font-weight: 600;
+    font-size: 16px;
+    margin-bottom: 6px;
+}
+
+.alert-message {
+    font-size: 14px;
+    line-height: 1.6;
+    opacity: 0.9;
+}
+
+
+/* ===========================
+   Protocol Badges
+   =========================== */
+
+.protocol-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: var(--radius-pill, 12px);
+    text-transform: uppercase;
+    color: #fff;
+    margin-right: 8px;
+    vertical-align: middle;
+    line-height: 1.4;
+}
+
+.protocol-usenet {
+    background-color: var(--usenet-color, #3498db);
+    border: 1px solid #2980b9;
+}
+
+.protocol-torrent {
+    background-color: var(--torrent-color, #27c24c);
+    border: 1px solid #1e8e3e;
+}
+
+.protocol-direct {
+    background-color: var(--direct-color, #f39c12);
+    border: 1px solid #d68910;
+}
+
+
+/* ===========================
+   Test Button & Results
+   =========================== */
+
+.test-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: var(--primary-color, #5d9cec);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm, 4px);
+    cursor: pointer;
+    font-size: 14px;
+    transition: background var(--transition-fast, 0.2s);
+    margin-top: 10px;
+}
+
+.test-button:hover:not(:disabled) {
+    background: var(--link-hover, #4a89dc);
+}
+
+.test-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.button-icon {
+    width: 16px;
+    height: 16px;
+    transition: all var(--transition-fast, 0.2s);
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.spinning {
+    animation: spin 1s linear infinite;
+}
+
+.success-icon {
+    /* Green filter for check icon */
+    filter: brightness(0) saturate(100%) invert(64%) sepia(89%) saturate(458%) hue-rotate(82deg) brightness(98%) contrast(89%);
+}
+
+.error-icon {
+    /* Red filter for X icon */
+    filter: brightness(0) saturate(100%) invert(41%) sepia(87%) saturate(2424%) hue-rotate(336deg) brightness(100%) contrast(91%);
+}
+
+.test-result {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: var(--radius-sm, 4px);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.test-result.success {
+    background-color: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.test-result.error {
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+.test-result .warnings {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(0,0,0,0.1);
+}
+
+.test-result .warning-item {
+    margin: 4px 0;
+    color: #856404;
+    font-size: 12px;
+}

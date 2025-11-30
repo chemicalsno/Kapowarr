@@ -72,6 +72,68 @@
 					</tr>
 				</tbody>
 			</table>
+			<h2>NZBHydra2</h2>
+			<table class="fold-table">
+				<tbody>
+					<tr>
+						<th><label for="nzbhydra-base-url-input">Base URL</label></th>
+						<td>
+							<input type="text" id="nzbhydra-base-url-input" spellcheck="false" placeholder="http://localhost:5076">
+							<p>The base URL of your NZBHydra2 instance</p>
+						</td>
+					</tr>
+					<tr>
+						<th><label for="nzbhydra-api-key-input">API Key</label></th>
+						<td>
+							<input type="password" id="nzbhydra-api-key-input" spellcheck="false">
+							<p>NZBHydra2 API key (found in Config → Main)</p>
+						</td>
+					</tr>
+					<tr>
+						<th><label for="nzbhydra-categories-input">Categories</label></th>
+						<td>
+							<input type="text" id="nzbhydra-categories-input" spellcheck="false" placeholder="7000,8000">
+							<p>Comma-separated category IDs to search (leave blank for all)</p>
+						</td>
+					</tr>
+					<tr>
+						<th></th>
+						<td>
+							<button type="button" id="test-nzbhydra-button" class="test-button">
+								<img src="{{ url_for('static', filename='img/refresh.svg') }}" id="test-hydra-icon" class="button-icon" alt="">
+								<span>Test Connection</span>
+							</button>
+							<div id="test-hydra-result" class="test-result" style="display: none;"></div>
+						</td>
+					</tr>
+				</tbody>
+			</table>
+			<h2>Sabnzbd Defaults</h2>
+			<table class="fold-table">
+				<tbody>
+					<tr>
+						<th><label for="sabnzbd-category-input">Category</label></th>
+						<td>
+							<input type="text" id="sabnzbd-category-input" spellcheck="false" placeholder="comics">
+							<p>Sabnzbd category for downloads (leave blank for default)</p>
+						</td>
+					</tr>
+					<tr>
+						<th><label for="sabnzbd-priority-input">Priority</label></th>
+						<td>
+							<select id="sabnzbd-priority-input">
+								<option value="Default">Default</option>
+								<option value="Paused">Paused</option>
+								<option value="Low">Low</option>
+								<option value="Normal" selected>Normal</option>
+								<option value="High">High</option>
+								<option value="Force">Force</option>
+							</select>
+							<p>Default priority for Usenet downloads</p>
+						</td>
+					</tr>
+				</tbody>
+			</table>
 			<h2>Service preference</h2>
 			<p>Drag to reorder. Higher items are preferred when downloading.</p>
 			<ul id="pref-list" class="sortable-list">

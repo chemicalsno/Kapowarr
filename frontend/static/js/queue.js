@@ -18,7 +18,18 @@ function addQueueEntry(api_key, obj) {
 	title.innerText = obj.title;
 	title.href = `${url_base}/volumes/${obj.volume_id}`;
 
-	const source = entry.querySelector('td:nth-child(3) a')
+	const sourceCell = entry.querySelector('td:nth-child(3)');
+	const source = sourceCell.querySelector('a');
+
+	// Add protocol badge if available
+	if (obj.protocol && obj.protocol_name) {
+		const protocolBadge = document.createElement('span');
+		protocolBadge.className = `protocol-badge protocol-${obj.protocol}`;
+		protocolBadge.textContent = obj.protocol_name;
+		sourceCell.insertBefore(protocolBadge, source);
+		sourceCell.insertBefore(document.createTextNode(' '), source);
+	}
+
     source.innerText =
 		obj.source_name.charAt(0).toUpperCase() + obj.source_name.slice(1);
     source.href = obj.web_link;

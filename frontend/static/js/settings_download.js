@@ -13,6 +13,13 @@ function fillSettings(api_key) {
 		document.querySelector('#seeding-handling-input').value = json.result.seeding_handling;
 		document.querySelector('#delete-downloads-input').checked = json.result.delete_completed_downloads;
 		initPrefList(json.result.service_preference);
+
+		// NZBHydra2 / Sabnzbd settings
+		document.querySelector('#nzbhydra-base-url-input').value = json.result.nzbhydra_base_url || '';
+		document.querySelector('#nzbhydra-api-key-input').value = json.result.nzbhydra_api_key || '';
+		document.querySelector('#nzbhydra-categories-input').value = json.result.nzbhydra_categories || '';
+		document.querySelector('#sabnzbd-category-input').value = json.result.sabnzbd_category || '';
+		document.querySelector('#sabnzbd-priority-input').value = json.result.sabnzbd_priority || 'Normal';
 	});
 };
 
@@ -25,7 +32,14 @@ function saveSettings(api_key) {
 		'failing_download_timeout': parseInt(document.querySelector('#download-timeout-input').value || 0) * 60,
 		'seeding_handling': document.querySelector('#seeding-handling-input').value,
 		'delete_completed_downloads': document.querySelector('#delete-downloads-input').checked,
-		'service_preference': getServicePreference()
+		'service_preference': getServicePreference(),
+
+		// NZBHydra2 / Sabnzbd settings
+		'nzbhydra_base_url': document.querySelector('#nzbhydra-base-url-input').value,
+		'nzbhydra_api_key': document.querySelector('#nzbhydra-api-key-input').value,
+		'nzbhydra_categories': document.querySelector('#nzbhydra-categories-input').value,
+		'sabnzbd_category': document.querySelector('#sabnzbd-category-input').value,
+		'sabnzbd_priority': document.querySelector('#sabnzbd-priority-input').value
 	};
 	sendAPI('PUT', '/settings', api_key, {}, data)
 	.then(response => 
@@ -161,6 +175,70 @@ function getDragAfterElement(container, y) {
 	}, { offset: Number.NEGATIVE_INFINITY }).element;
 };
 
+//
+// Test NZBHydra2 connection
+//
+function testNZBHydra(api_key) {
+	const button = document.querySelector('#test-nzbhydra-button');
+	const icon = document.querySelector('#test-hydra-icon');
+	const resultDiv = document.querySelector('#test-hydra-result');
+
+	const baseUrl = document.querySelector('#nzbhydra-base-url-input').value;
+	const apiKey = document.querySelector('#nzbhydra-api-key-input').value;
+
+	if (!baseUrl || !apiKey) {
+		resultDiv.textContent = '⚠ Please enter Base URL and API Key first';
+		resultDiv.className = 'test-result error';
+		resultDiv.style.display = 'block';
+		setTimeout(() => resultDiv.style.display = 'none', 5000);
+		return;
+	}
+
+	// Show spinner
+	icon.src = icon.src.replace('refresh.svg', 'loading.svg');
+	icon.classList.add('spinning');
+	button.disabled = true;
+	resultDiv.style.display = 'none';
+
+	// Simple test: try to hit the API
+	fetch(`${baseUrl}/api?t=search&apikey=${apiKey}&q=test&o=json`, { method: 'GET', mode: 'no-cors' })
+	.then(() => {
+		// Success - show checkmark
+		icon.src = icon.src.replace('loading.svg', 'check.svg');
+		icon.classList.remove('spinning');
+		icon.classList.add('success-icon');
+
+		resultDiv.className = 'test-result success';
+		resultDiv.innerHTML = '✓ Successfully connected to NZBHydra2';
+		resultDiv.style.display = 'block';
+
+		// Reset after 5 seconds
+		setTimeout(() => {
+			icon.src = icon.src.replace('check.svg', 'refresh.svg');
+			icon.classList.remove('success-icon');
+			button.disabled = false;
+			resultDiv.style.display = 'none';
+		}, 5000);
+	})
+	.catch(error => {
+		// Error - show X
+		icon.src = icon.src.replace('loading.svg', 'cancel.svg');
+		icon.classList.remove('spinning');
+		icon.classList.add('error-icon');
+
+		resultDiv.className = 'test-result error';
+		resultDiv.textContent = '✗ Connection failed - check URL and API key';
+		resultDiv.style.display = 'block';
+
+		// Reset after 5 seconds
+		setTimeout(() => {
+			icon.src = icon.src.replace('cancel.svg', 'refresh.svg');
+			icon.classList.remove('error-icon');
+			button.disabled = false;
+		}, 5000);
+	});
+}
+
 // code run on load
 usingApiKey()
 .then(api_key => {
@@ -168,7 +246,8 @@ usingApiKey()
 
 	document.querySelector('#save-button').onclick = e => saveSettings(api_key);
 	document.querySelector('#empty-download-folder').onclick = e => emptyFolder(api_key);
-	
+	document.querySelector('#test-nzbhydra-button').onclick = e => testNZBHydra(api_key);
+
 	// Add source button handler
 	prefAddBtn.onclick = () => {
 		const source = prefAddSelect.value;
@@ -178,7 +257,7 @@ usingApiKey()
 			prefAddSelect.value = '';
 		}
 	};
-	
+
 	// Also add on select change for convenience
 	prefAddSelect.onchange = () => {
 		const source = prefAddSelect.value;

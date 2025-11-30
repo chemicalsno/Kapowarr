@@ -1161,5 +1161,7 @@ class UsenetDownload(ExternalDownload, BaseDirectDownload):
         """
         return {
             **super().as_dict(),
-            'client': self.external_client.id if self._external_client else None
+            'client': self.external_client.id if self._external_client else None,
+            'protocol': 'usenet',
+            'protocol_name': 'NZB'
         }
