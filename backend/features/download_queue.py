@@ -201,13 +201,15 @@ class DownloadHandler(metaclass=Singleton):
             if download.state == DownloadState.CANCELED_STATE:
                 download.remove_from_client(delete_files=True)
                 PostProcessor.canceled(download)
-                self.queue.remove(download)
+                if download in self.queue:
+                    self.queue.remove(download)
                 break
 
             elif download.state == DownloadState.FAILED_STATE:
                 download.remove_from_client(delete_files=True)
                 PostProcessor.perm_failed(download)
-                self.queue.remove(download)
+                if download in self.queue:
+                    self.queue.remove(download)
                 break
 
             elif download.state == DownloadState.SHUTDOWN_STATE:
@@ -217,7 +219,8 @@ class DownloadHandler(metaclass=Singleton):
                 if self.settings.sv.delete_completed_downloads:
                     download.remove_from_client(delete_files=False)
                 PostProcessor.success(download)
-                self.queue.remove(download)
+                if download in self.queue:
+                    self.queue.remove(download)
                 break
 
             else:

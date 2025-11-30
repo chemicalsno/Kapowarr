@@ -14,31 +14,24 @@
     margin: 20px auto;
     max-width: 600px;
     border-left: 4px solid;
-    box-shadow: var(--shadow-sm, 0 2px 4px rgba(0,0,0,0.1));
+    background-color: var(--background-hover, #2a2a2a);
+    color: var(--text-color, #e0e0e0);
 }
 
 .alert-info {
-    background-color: #d1ecf1;
-    border-left-color: var(--info-color, #17a2b8);
-    color: #0c5460;
+    border-left-color: var(--info-color, #5d9cec);
 }
 
 .alert-success {
-    background-color: #d4edda;
-    border-left-color: var(--success-color, #28a745);
-    color: #155724;
+    border-left-color: var(--success-color, #27c24c);
 }
 
 .alert-warning {
-    background-color: #fff3cd;
-    border-left-color: var(--warning-color, #ffc107);
-    color: #856404;
+    border-left-color: var(--warning-color, #ffa500);
 }
 
 .alert-danger {
-    background-color: #f8d7da;
-    border-left-color: var(--danger-color, #dc3545);
-    color: #721c24;
+    border-left-color: var(--danger-color, #f05050);
 }
 
 .alert-content {

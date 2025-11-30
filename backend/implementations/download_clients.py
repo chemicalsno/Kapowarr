@@ -376,7 +376,7 @@ class BaseDirectDownload(Download):
             'source_name': self._source_name,
             'type': self.identifier,
 
-            'file': self._files[0],
+            'file': self._files[0] if self._files else None,
             'title': self._title,
             'download_folder': self._download_folder,
 
