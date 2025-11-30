@@ -607,6 +607,134 @@ class CredentialInvalid(KapowarrException):
 
 
 # region Download Clients
+class DownloadClientException(KapowarrException):
+    """Base exception for download client errors.
+
+    This is the parent class for all download client exceptions,
+    allowing for generic handling of any download client error.
+    """
+
+    def __init__(self, message: str = "Download client error") -> None:
+        self.message = message
+        LOGGER.warning(f"Download client error: {message}")
+        return
+
+    @property
+    def api_response(self) -> ApiResponse:
+        return {
+            "code": 400,
+            "error": self.__class__.__name__,
+            "result": {
+                "message": self.message
+            }
+        }
+
+
+class DownloadClientUnavailableException(DownloadClientException):
+    """Download client is temporarily unavailable.
+
+    Raised when there are network errors, timeouts, or other
+    temporary connectivity issues with the download client.
+    """
+
+    def __init__(self, message: str = "Download client is unavailable") -> None:
+        self.message = message
+        LOGGER.warning(f"Download client unavailable: {message}")
+        # Skip parent __init__ to avoid double logging
+        return
+
+    @property
+    def api_response(self) -> ApiResponse:
+        return {
+            "code": 503,
+            "error": self.__class__.__name__,
+            "result": {
+                "message": self.message
+            }
+        }
+
+
+class DownloadClientAuthenticationException(DownloadClientException):
+    """Download client authentication failed.
+
+    Raised when the API key, username, or password is invalid
+    or when the client returns a 401/403 authentication error.
+    """
+
+    def __init__(
+        self,
+        message: str = "Authentication failed - check API key"
+    ) -> None:
+        self.message = message
+        LOGGER.warning(f"Download client auth failed: {message}")
+        # Skip parent __init__ to avoid double logging
+        return
+
+    @property
+    def api_response(self) -> ApiResponse:
+        return {
+            "code": 401,
+            "error": self.__class__.__name__,
+            "result": {
+                "message": self.message
+            }
+        }
+
+
+class InvalidNzbException(DownloadClientException):
+    """NZB file is invalid or malformed.
+
+    Raised when an NZB file fails validation checks such as:
+    - Invalid XML structure
+    - Missing or incorrect root element
+    - No file elements present
+    - Indexer error responses embedded in NZB
+    """
+
+    def __init__(self, message: str = "Invalid NZB file") -> None:
+        self.message = message
+        LOGGER.warning(f"Invalid NZB: {message}")
+        # Skip parent __init__ to avoid double logging
+        return
+
+    @property
+    def api_response(self) -> ApiResponse:
+        return {
+            "code": 400,
+            "error": self.__class__.__name__,
+            "result": {
+                "message": self.message
+            }
+        }
+
+
+class EncryptedDownloadException(DownloadClientException):
+    """Download is encrypted and cannot be processed.
+
+    Raised when Sabnzbd detects that a download is password-protected
+    or encrypted, which prevents successful extraction.
+    """
+
+    def __init__(
+        self,
+        message: str = "Download is encrypted and cannot be processed"
+    ) -> None:
+        self.message = message
+        LOGGER.warning(f"Encrypted download: {message}")
+        # Skip parent __init__ to avoid double logging
+        return
+
+    @property
+    def api_response(self) -> ApiResponse:
+        return {
+            "code": 400,
+            "error": self.__class__.__name__,
+            "result": {
+                "message": self.message
+            }
+        }
+
+
 class ClientNotWorking(KapowarrException):
     "The download client is not working"
 

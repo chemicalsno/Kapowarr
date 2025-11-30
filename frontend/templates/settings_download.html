@@ -72,6 +72,72 @@
 					</tr>
 				</tbody>
 			</table>
+			<h2>Usenet</h2>
+			<table class="fold-table">
+				<tbody>
+					<tr>
+						<th><label for="usenet-enabled-input">Enable Usenet</label></th>
+						<td>
+							<input type="checkbox" id="usenet-enabled-input">
+							<p>Enable Usenet downloads via NZBHydra2 and Sabnzbd</p>
+						</td>
+					</tr>
+				</tbody>
+			</table>
+			<div id="usenet-settings" style="display: none;">
+				<h3>NZBHydra2 Configuration</h3>
+				<table class="fold-table">
+					<tbody>
+						<tr>
+							<th><label for="nzbhydra-base-url-input">NZBHydra2 <br>Base URL</label></th>
+							<td>
+								<input type="text" id="nzbhydra-base-url-input" spellcheck="false" placeholder="http://localhost:5076">
+								<p>The base URL of your NZBHydra2 instance (e.g., http://localhost:5076)</p>
+							</td>
+						</tr>
+						<tr>
+							<th><label for="nzbhydra-api-key-input">API Key</label></th>
+							<td>
+								<input type="password" id="nzbhydra-api-key-input" spellcheck="false">
+								<p>NZBHydra2 API key (found in Config → Main)</p>
+							</td>
+						</tr>
+						<tr>
+							<th><label for="nzbhydra-categories-input">Categories <br>(Optional)</label></th>
+							<td>
+								<input type="text" id="nzbhydra-categories-input" spellcheck="false" placeholder="7000,8000">
+								<p>Comma-separated category IDs to search (leave blank for all categories)</p>
+							</td>
+						</tr>
+					</tbody>
+				</table>
+				<h3>Sabnzbd Settings</h3>
+				<table class="fold-table">
+					<tbody>
+						<tr>
+							<th><label for="sabnzbd-category-input">Category <br>(Optional)</label></th>
+							<td>
+								<input type="text" id="sabnzbd-category-input" spellcheck="false" placeholder="comics">
+								<p>Sabnzbd category for downloads (leave blank to use default)</p>
+							</td>
+						</tr>
+						<tr>
+							<th><label for="sabnzbd-priority-input">Default Priority</label></th>
+							<td>
+								<select id="sabnzbd-priority-input">
+									<option value="Default">Default</option>
+									<option value="Paused">Paused</option>
+									<option value="Low">Low</option>
+									<option value="Normal">Normal</option>
+									<option value="High">High</option>
+									<option value="Force">Force</option>
+								</select>
+								<p>Default priority for Usenet downloads</p>
+							</td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
 			<h2>Service preference</h2>
 			<p>The preference for service to download from when using GetComics as the source.</p>
 			<table id="pref-table" class="short-table">

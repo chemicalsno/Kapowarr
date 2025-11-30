@@ -89,6 +89,15 @@ class PublicSettingsValues:
     seeding_handling: SeedingHandling = SeedingHandling.COPY
     delete_completed_downloads: bool = True
 
+    usenet_enabled: bool = False
+
+    nzbhydra_base_url: str = ''
+    nzbhydra_api_key: str = ''
+    nzbhydra_categories: str = ''
+
+    sabnzbd_category: str = ''
+    sabnzbd_priority: str = 'Normal'
+
     date_type: DateType = DateType.COVER_DATE
 
     def todict(self, to_public: bool = True) -> Dict[str, Any]:

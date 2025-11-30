@@ -29,7 +29,8 @@ from backend.features.post_processing import (PostProcessor,
 from backend.implementations.blocklist import add_to_blocklist
 from backend.implementations.download_clients import (BaseDirectDownload,
                                                       MegaDownload,
-                                                      TorrentDownload)
+                                                      TorrentDownload,
+                                                      UsenetDownload)
 from backend.implementations.external_clients import ExternalClients
 from backend.implementations.getcomics import GetComicsPage
 from backend.implementations.volumes import Issue
@@ -178,6 +179,53 @@ class DownloadHandler(metaclass=Singleton):
         ws.emit(RemovedFromQueueEvent(download))
         return
 
+    def __run_usenet_download(self, download: UsenetDownload) -> None:
+        """Start a Usenet download. Intended to be run in a thread.
+
+        Args:
+            download (UsenetDownload): The Usenet download to run.
+                One of the entries in self.queue.
+        """
+        download.run()
+
+        ws = WebSocket()
+        status_event = QueueStatusEvent(download)
+
+        while True:
+            download.update_status()
+            ws.emit(status_event)
+
+            if download.state == DownloadState.CANCELED_STATE:
+                download.remove_from_client(delete_files=True)
+                PostProcessor.canceled(download)
+                self.queue.remove(download)
+                break
+
+            elif download.state == DownloadState.FAILED_STATE:
+                download.remove_from_client(delete_files=True)
+                PostProcessor.perm_failed(download)
+                self.queue.remove(download)
+                break
+
+            elif download.state == DownloadState.SHUTDOWN_STATE:
+                break
+
+            elif download.state == DownloadState.IMPORTING_STATE:
+                if self.settings.sv.delete_completed_downloads:
+                    download.remove_from_client(delete_files=False)
+                PostProcessor.success(download)
+                self.queue.remove(download)
+                break
+
+            else:
+                # Queued or Downloading
+                download.sleep_event.wait(
+                    timeout=Constants.USENET_UPDATE_INTERVAL
+                )
+
+        ws.emit(RemovedFromQueueEvent(download))
+        return
+
     # region Queue Management
     def _process_queue(self) -> None:
         """
@@ -312,6 +360,15 @@ class DownloadHandler(metaclass=Singleton):
                     target=self.__run_torrent_download,
                     args=(download,),
                     name=f'TorrentDownloadThread-{download.id}'
+                )
+                download.download_thread = thread
+                thread.start()
+
+            elif isinstance(download, UsenetDownload):
+                thread = Server().get_db_thread(
+                    target=self.__run_usenet_download,
+                    args=(download,),
+                    name=f'UsenetDownloadThread-{download.id}'
                 )
                 download.download_thread = thread
                 thread.start()
