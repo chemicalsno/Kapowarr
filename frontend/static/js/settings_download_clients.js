@@ -66,7 +66,7 @@ function loadEditTorrent(api_key, id) {
 		form.dataset.type = client_type;
 		fetchAPI('/externalclients/options', api_key)
 		.then(options => {
-			const client_options = options.result[client_type];
+			const client_options = options.result[client_type].required_tokens;
 
 			form.querySelector('#edit-title-input').value =
 				client_data.result.title || '';
@@ -96,6 +96,57 @@ function loadEditTorrent(api_key, id) {
 			};
 
 			showWindow('edit-torrent-window');
+		});
+	});
+};
+
+function loadEditUsenet(api_key, id) {
+	const form = document.querySelector('#edit-usenet-form tbody');
+	form.dataset.id = id;
+	form.querySelectorAll(
+		'tr:not(:has(input#edit-usenet-title-input, input#edit-usenet-baseurl-input))'
+	).forEach(el => el.remove());
+	document.querySelector('#test-usenet-edit').classList.remove(
+		'show-success', 'show-fail'
+	)
+	hide([document.querySelector('#edit-usenet-error')]);
+
+	fetchAPI(`/externalclients/${id}`, api_key)
+	.then(client_data => {
+		const client_type = client_data.result.client_type;
+		form.dataset.type = client_type;
+		fetchAPI('/externalclients/options', api_key)
+		.then(options => {
+			const client_options = options.result[client_type].required_tokens;
+
+			form.querySelector('#edit-usenet-title-input').value =
+				client_data.result.title || '';
+
+			form.querySelector('#edit-usenet-baseurl-input').value =
+				client_data.result.base_url;
+
+			if (client_options.includes('username')) {
+				const username_input = createUsernameInput('edit-usenet-username-input');
+				username_input.querySelector('input').value =
+					client_data.result.username || '';
+				form.appendChild(username_input);
+			};
+
+			if (client_options.includes('password')) {
+				const password_input = createPasswordInput('edit-usenet-password-input');
+				password_input.querySelector('input').value =
+					client_data.result.password || '';
+				form.appendChild(password_input);
+			};
+
+			if (client_options.includes('api_token')) {
+				const token_input = createApiTokenInput('edit-usenet-token-input');
+				token_input.querySelector('input').value =
+					client_data.result.api_token || '';
+				form.appendChild(token_input);
+			};
+
+			showWindow('edit-usenet-window');
 		});
 	});
 };
@@ -180,19 +231,180 @@ function deleteTorrent(api_key) {
 	});
 };
 
+// Usenet client functions
+function saveEditUsenet() {
+	usingApiKey()
+	.then(api_key => {
+		testEditUsenet(api_key).then(result => {
+			if (!result)
+				return;
+
+			const form = document.querySelector('#edit-usenet-form tbody');
+			const id = form.dataset.id;
+			const data = {
+				title: form.querySelector('#edit-usenet-title-input').value,
+				base_url: form.querySelector('#edit-usenet-baseurl-input').value,
+				username: form.querySelector('#edit-usenet-username-input')?.value || null,
+				password: form.querySelector('#edit-usenet-password-input')?.value || null,
+				api_token: form.querySelector('#edit-usenet-token-input')?.value || null
+			};
+			sendAPI('PUT', `/externalclients/${id}`, api_key, {}, data)
+			.then(response => {
+				loadUsenetClients(api_key);
+				closeWindow();
+			})
+			.catch(e => {
+				if (e.status === 400) {
+					// Client is downloading
+					const error = document.querySelector('#edit-usenet-error');
+					error.innerText = '*Client is downloading';
+					hide([], [error]);
+				};
+			});
+		});
+	});
+};
+
+async function testEditUsenet(api_key) {
+	const error = document.querySelector('#edit-usenet-error');
+	hide([error]);
+	const form = document.querySelector('#edit-usenet-form tbody');
+	const test_button = document.querySelector('#test-usenet-edit');
+	test_button.classList.remove('show-success', 'show-fail');
+	const data = {
+		client_type: form.dataset.type,
+		base_url: form.querySelector('#edit-usenet-baseurl-input').value,
+		username: form.querySelector('#edit-usenet-username-input')?.value || null,
+		password: form.querySelector('#edit-usenet-password-input')?.value || null,
+		api_token: form.querySelector('#edit-usenet-token-input')?.value || null,
+	};
+	return await sendAPI('POST', '/externalclients/test', api_key, {}, data)
+	.then(response => response.json())
+	.then(json => {
+		if (json.result.success)
+			// Test successful
+			test_button.classList.add('show-success');
+		else {
+			// Test failed
+			test_button.classList.add('show-fail');
+			error.innerText = json.result.description;
+			hide([], [error]);
+		};
+		return json.result.success;
+	});
+};
+
+function deleteUsenet(api_key) {
+	const id = document.querySelector('#edit-usenet-form tbody').dataset.id;
+	sendAPI('DELETE', `/externalclients/${id}`, api_key)
+	.then(response => {
+		loadUsenetClients(api_key);
+		fillRemoteMappings(api_key);
+		closeWindow();
+	})
+	.catch(e => {
+		if (e.status === 400) {
+			// Client is downloading
+			const error = document.querySelector('#edit-usenet-error');
+			error.innerText = '*Client is downloading';
+			hide([], [error]);
+		};
+	});
+};
+
+function saveAddUsenet() {
+	usingApiKey()
+	.then(api_key => {
+		testAddUsenet(api_key).then(result => {
+			if (!result)
+				return;
+
+			const form = document.querySelector('#add-usenet-form tbody');
+			const data = {
+				client_type: form.dataset.type,
+				title: form.querySelector('#add-usenet-title-input').value,
+				base_url: form.querySelector('#add-usenet-baseurl-input').value,
+				username: form.querySelector('#add-usenet-username-input')?.value || null,
+				password: form.querySelector('#add-usenet-password-input')?.value || null,
+				api_token: form.querySelector('#add-usenet-token-input')?.value || null
+			};
+			sendAPI('POST', '/externalclients', api_key, {}, data)
+			.then(response => {
+				loadUsenetClients(api_key);
+				closeWindow();
+			});
+		});
+	});
+};
+
+async function testAddUsenet(api_key) {
+	const error = document.querySelector('#add-usenet-error');
+	hide([error]);
+	const form = document.querySelector('#add-usenet-form tbody');
+	const test_button = document.querySelector('#test-usenet-add');
+	test_button.classList.remove('show-success', 'show-fail');
+	const data = {
+		client_type: form.dataset.type,
+		base_url: form.querySelector('#add-usenet-baseurl-input').value,
+		username: form.querySelector('#add-usenet-username-input')?.value || null,
+		password: form.querySelector('#add-usenet-password-input')?.value || null,
+		api_token: form.querySelector('#add-usenet-token-input')?.value || null,
+	};
+	return await sendAPI('POST', '/externalclients/test', api_key, {}, data)
+	.then(response => response.json())
+	.then(json => {
+		if (json.result.success)
+			// Test successful
+			test_button.classList.add('show-success');
+		else {
+			// Test failed
+			test_button.classList.add('show-fail');
+			error.innerText = json.result.description;
+			hide([], [error]);
+		};
+		return json.result.success;
+	});
+};
+
+// Download type constants
+const DOWNLOAD_TYPE_TORRENT = 2;
+const DOWNLOAD_TYPE_USENET = 3;
+
 function loadTorrentList(api_key) {
 	const table = document.querySelector('#choose-torrent-list');
 	table.innerHTML = '';
 
 	fetchAPI('/externalclients/options', api_key)
 	.then(json => {
-		Object.keys(json.result).forEach(c => {
+		Object.entries(json.result).forEach(([name, options]) => {
+			// Only show torrent clients
+			if (options.download_type !== DOWNLOAD_TYPE_TORRENT) return;
+			
 			const entry = document.createElement('button');
-			entry.innerText = c;
-			entry.onclick = e => loadAddTorrent(api_key, c);
+			entry.innerText = name;
+			entry.onclick = e => loadAddTorrent(api_key, name);
 			table.appendChild(entry);
 		});
 		showWindow('choose-torrent-window');
+	});
+};
+
+function loadUsenetList(api_key) {
+	const table = document.querySelector('#choose-usenet-list');
+	table.innerHTML = '';
+
+	fetchAPI('/externalclients/options', api_key)
+	.then(json => {
+		Object.entries(json.result).forEach(([name, options]) => {
+			// Only show usenet clients
+			if (options.download_type !== DOWNLOAD_TYPE_USENET) return;
+			
+			const entry = document.createElement('button');
+			entry.innerText = name;
+			entry.onclick = e => loadAddUsenet(api_key, name);
+			table.appendChild(entry);
+		});
+		showWindow('choose-usenet-window');
 	});
 };
 
@@ -211,7 +423,7 @@ function loadAddTorrent(api_key, client_type) {
 
 	fetchAPI('/externalclients/options', api_key)
 	.then(json => {
-		const client_options = json.result[client_type];
+		const client_options = json.result[client_type].required_tokens;
 
 		if (client_options.includes('username'))
 			form.appendChild(createUsernameInput('add-username-input'));
@@ -223,6 +435,37 @@ function loadAddTorrent(api_key, client_type) {
 			form.appendChild(createApiTokenInput('add-token-input'));
 
 		showWindow('add-torrent-window');
+	});
+};
+
+function loadAddUsenet(api_key, client_type) {
+	const form = document.querySelector('#add-usenet-form tbody');
+	form.dataset.type = client_type;
+	form.querySelectorAll(
+		'tr:not(:has(input#add-usenet-title-input, input#add-usenet-baseurl-input))'
+	).forEach(el => el.remove());
+	document.querySelector('#test-usenet-add').classList.remove(
+		'show-success', 'show-fail'
+	)
+	form.querySelectorAll(
+		'#add-usenet-title-input, #add-usenet-baseurl-input'
+	).forEach(el => el.value = '');
+	hide([document.querySelector('#add-usenet-error')]);
+
+	fetchAPI('/externalclients/options', api_key)
+	.then(json => {
+		const client_options = json.result[client_type].required_tokens;
+
+		if (client_options.includes('username'))
+			form.appendChild(createUsernameInput('add-usenet-username-input'));
+
+		if (client_options.includes('password'))
+			form.appendChild(createPasswordInput('add-usenet-password-input'));
+
+		if (client_options.includes('api_token'))
+			form.appendChild(createApiTokenInput('add-usenet-token-input'));
+
+		showWindow('add-usenet-window');
 	});
 };
 
@@ -292,6 +535,9 @@ function loadTorrentClients(api_key) {
 		edit_mapping_select.innerHTML = ''
 
 		json.result.forEach(client => {
+			// Only show torrent clients (download_type: 2)
+			if (client.download_type !== DOWNLOAD_TYPE_TORRENT) return;
+
 			const entry = document.createElement('button');
 			entry.onclick = (e) => loadEditTorrent(api_key, client.id);
 			entry.innerText = client.title;
@@ -302,6 +548,37 @@ function loadTorrentClients(api_key) {
 			option.value = client.id;
 			add_mapping_select.appendChild(option);
 			edit_mapping_select.appendChild(option.cloneNode(true));
+		});
+
+		// Also add usenet clients to remote mapping dropdowns
+		json.result.forEach(client => {
+			if (client.download_type !== DOWNLOAD_TYPE_USENET) return;
+
+			const option = document.createElement('option');
+			option.innerText = client.title;
+			option.value = client.id;
+			add_mapping_select.appendChild(option);
+			edit_mapping_select.appendChild(option.cloneNode(true));
+		});
+	});
+};
+
+function loadUsenetClients(api_key) {
+	fetchAPI('/externalclients', api_key)
+	.then(json => {
+		const table = document.querySelector('#usenet-client-list');
+
+		document.querySelectorAll('#usenet-client-list > :not(:first-child)')
+			.forEach(el => el.remove());
+
+		json.result.forEach(client => {
+			// Only show usenet clients (download_type: 3)
+			if (client.download_type !== DOWNLOAD_TYPE_USENET) return;
+
+			const entry = document.createElement('button');
+			entry.onclick = (e) => loadEditUsenet(api_key, client.id);
+			entry.innerText = client.title;
+			table.appendChild(entry);
 		});
 	});
 };
@@ -481,15 +758,26 @@ usingApiKey()
 .then(api_key => {
 	fillCredentials(api_key);
 	loadTorrentClients(api_key);
+	loadUsenetClients(api_key);
 	fillRemoteMappings(api_key);
+	
+	// Torrent client event handlers
 	document.querySelector('#delete-torrent-edit').onclick = e => deleteTorrent(api_key);
 	document.querySelector('#test-torrent-edit').onclick = e => testEditTorrent(api_key);
 	document.querySelector('#test-torrent-add').onclick = e => testAddTorrent(api_key);
 	document.querySelector('#add-torrent-client').onclick = e => loadTorrentList(api_key);
+	
+	// Usenet client event handlers
+	document.querySelector('#delete-usenet-edit').onclick = e => deleteUsenet(api_key);
+	document.querySelector('#test-usenet-edit').onclick = e => testEditUsenet(api_key);
+	document.querySelector('#test-usenet-add').onclick = e => testAddUsenet(api_key);
+	document.querySelector('#add-usenet-client').onclick = e => loadUsenetList(api_key);
 });
 
 document.querySelector('#edit-torrent-form').action = 'javascript:saveEditTorrent()';
 document.querySelector('#add-torrent-form').action = 'javascript:saveAddTorrent()';
+document.querySelector('#edit-usenet-form').action = 'javascript:saveEditUsenet()';
+document.querySelector('#add-usenet-form').action = 'javascript:saveAddUsenet()';
 document.querySelectorAll('#cred-container > form').forEach(
 	f => f.action = 'javascript:addCredential();'
 );

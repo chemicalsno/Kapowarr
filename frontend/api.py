@@ -1234,7 +1234,7 @@ def api_credential(id: int):
 
 
 # =====================
-# Torrent Clients
+# External Download Clients (Torrent + Usenet)
 # =====================
 @api.route('/externalclients', methods=['GET', 'POST'])
 @error_handler
@@ -1263,7 +1263,10 @@ def api_external_clients():
 @auth
 def api_external_clients_keys():
     result = {
-        k: v.required_tokens
+        k: {
+            'required_tokens': v.required_tokens,
+            'download_type': v.download_type.value
+        }
         for k, v in ExternalClients.get_client_types().items()
     }
     return return_api(result)
