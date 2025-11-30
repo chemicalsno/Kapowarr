@@ -32,9 +32,11 @@ class HydraSearchSource(SearchSource):
             List[SearchResultData]: The search results.
         """
         settings = Settings().sv
+        LOGGER.debug(f"HydraSearchSource.search() called for query: '{self.query}'")
 
         # Skip if NZBHydra2 is not configured
         if not settings.nzbhydra_base_url:
+            LOGGER.debug("NZBHydra2 base URL not configured, skipping search")
             return []
 
         # Skip if no Usenet download client is configured
@@ -42,6 +44,7 @@ class HydraSearchSource(SearchSource):
             c for c in ExternalClients.get_clients()
             if c['download_type'] == DownloadType.USENET.value
         ]
+        LOGGER.debug(f"Found {len(usenet_clients)} Usenet client(s)")
         if not usenet_clients:
             LOGGER.debug("No Usenet client configured, skipping NZBHydra2 search")
             return []
@@ -59,6 +62,7 @@ class HydraSearchSource(SearchSource):
             params['cat'] = settings.nzbhydra_categories
 
         url = f"{settings.nzbhydra_base_url.rstrip('/')}/api"
+        LOGGER.debug(f"Searching NZBHydra2 at {url}")
 
         try:
             async with session.get(url, params=params) as response:

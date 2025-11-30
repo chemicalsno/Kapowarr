@@ -13,6 +13,7 @@ from backend.base.helpers import (AsyncSession, check_overlapping_issues,
 from backend.base.logging import LOGGER
 from backend.implementations.getcomics import search_getcomics
 from backend.implementations.matching import check_search_result_match
+from backend.implementations.usenet_indexers.hydra import HydraSearchSource
 from backend.implementations.volumes import Volume
 from backend.internals.settings import Settings
 
@@ -164,8 +165,13 @@ class SearchGetComics(SearchSource):
 def _get_enabled_search_sources() -> list:
     """Get search source classes that are enabled in service_preference."""
     service_preference = Settings().sv.service_preference
+    LOGGER.debug(f"Service preference: {list(service_preference)}")
+    
+    all_sources = get_subclasses(SearchSource)
+    LOGGER.debug(f"Available search sources: {[s.source_name for s in all_sources]}")
+    
     enabled_sources = []
-    for Source in get_subclasses(SearchSource):
+    for Source in all_sources:
         # GetComics is enabled if any GC download source is in preference
         if Source.source_name == 'GetComics':
             gc_sources = {'Mega', 'MediaFire', 'WeTransfer', 'Pixeldrain',
@@ -174,6 +180,8 @@ def _get_enabled_search_sources() -> list:
                 enabled_sources.append(Source)
         elif Source.source_name in service_preference:
             enabled_sources.append(Source)
+    
+    LOGGER.debug(f"Enabled search sources: {[s.source_name for s in enabled_sources]}")
     return enabled_sources
 
 
@@ -185,14 +193,20 @@ async def search_multiple_queries(*queries: str) -> List[SearchResultData]:
         duplicates removed.
     """
     enabled_sources = _get_enabled_search_sources()
+    LOGGER.debug(f"Running search for queries: {queries}")
+    LOGGER.debug(f"Search will use {len(enabled_sources)} source(s): "
+                 f"{[s.source_name for s in enabled_sources]}")
+    
     async with AsyncSession() as session:
         searches = [
             Source(query).search(session)
             for Source in enabled_sources
             for query in queries
         ]
+        LOGGER.debug(f"Executing {len(searches)} search task(s)")
         responses = await gather(*searches)
 
+    LOGGER.debug(f"All searches complete, processing {len(responses)} response(s)")
     search_results: List[SearchResultData] = []
     processed_links = set()
     for response in responses:
