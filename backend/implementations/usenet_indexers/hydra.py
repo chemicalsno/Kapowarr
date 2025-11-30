@@ -130,6 +130,18 @@ class HydraSearchSource(SearchSource):
             if enclosure is not None:
                 nzb_url = enclosure.get('url', '')
 
+        # Extract pubDate and calculate age in days
+        from datetime import datetime
+        from email.utils import parsedate_to_datetime
+        age = None
+        pub_date_elem = item.find('pubDate')
+        if pub_date_elem is not None and pub_date_elem.text:
+            try:
+                pub_date = parsedate_to_datetime(pub_date_elem.text)
+                age = (datetime.now(pub_date.tzinfo) - pub_date).days
+            except Exception:
+                pass
+
         # Get indexer name from Newznab attributes
         # NZBHydra2 adds custom attributes with indexer info
         indexer_name = 'Usenet'
@@ -164,7 +176,8 @@ class HydraSearchSource(SearchSource):
             'volume_number': 1,  # Default to volume 1 for TPBs
             'special_version': None,
             'issue_number': None,  # Don't guess issue numbers from release titles
-            'annual': False
+            'annual': False,
+            'age': age
         }
 
         return result

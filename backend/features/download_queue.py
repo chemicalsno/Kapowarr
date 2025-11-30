@@ -577,8 +577,8 @@ class DownloadHandler(metaclass=Singleton):
                     LOGGER.error('No Usenet (Sabnzbd) clients configured')
                     return [], EnqueuingDownloadFailureReason.NO_WORKING_LINKS
 
-                # Create UsenetDownload object
-                # Select least-used client (UsenetDownload will handle this in __init__)
+                # Create UsenetDownload object with pre-fetched NZB content
+                # This avoids double-fetching from NZBHydra2
                 downloads = [
                     UsenetDownload(
                         download_link=link,
@@ -587,9 +587,10 @@ class DownloadHandler(metaclass=Singleton):
                         source_type=DownloadSource.USENET,
                         source_name='NZBHydra2',
                         web_link=link,
-                        web_title=None,  # Could extract from NZB filename
+                        web_title=None,
                         web_sub_title=None,
-                        forced_match=force_match
+                        forced_match=force_match,
+                        nzb_content=nzb_content  # Pass pre-fetched content
                     )
                 ]
                 LOGGER.info(f'Created Usenet download for volume {volume_id}')

@@ -226,15 +226,19 @@ class Sabnzbd(BaseExternalClient):
     def add_download(
         self,
         download_link: str,
-        target_folder: str,
-        download_name: Union[str, None]
+        download_folder: str,
+        download_name: Union[str, None] = None,
+        nzb_content: Union[bytes, None] = None
     ) -> str:
-        """Add a download to Sabnzbd.
+        """Add an NZB download to Sabnzbd.
 
         Args:
-            download_link (str): The NZB URL to download.
-            target_folder (str): The folder to download to (mapped path).
-            download_name (Union[str, None]): Optional custom name for download.
+            download_link (str): The URL of the NZB file (used if nzb_content not provided).
+            download_folder (str): The folder to download to (not used by Sabnzbd).
+            download_name (Union[str, None], optional): Name for the download.
+                Defaults to None.
+            nzb_content (Union[bytes, None], optional): Raw NZB file content.
+                If provided, uploads directly instead of having Sabnzbd fetch URL.
 
         Raises:
             ClientNotWorking: Can't connect to client.
@@ -248,8 +252,6 @@ class Sabnzbd(BaseExternalClient):
             self.ssn = Session()
 
         params = {
-            'mode': 'addurl',
-            'name': download_link,
             'output': 'json',
             'apikey': self.api_token,
         }
@@ -269,7 +271,16 @@ class Sabnzbd(BaseExternalClient):
             params['nzbname'] = download_name
 
         try:
-            response = self.ssn.post(f'{self.base_url}/api', data=params)
+            if nzb_content:
+                # Upload NZB content directly (preferred - avoids double fetch)
+                params['mode'] = 'addfile'
+                files = {'nzbfile': (f'{download_name or "download"}.nzb', nzb_content)}
+                response = self.ssn.post(f'{self.base_url}/api', data=params, files=files)
+            else:
+                # Fallback to URL mode
+                params['mode'] = 'addurl'
+                params['name'] = download_link
+                response = self.ssn.post(f'{self.base_url}/api', data=params)
             data = response.json()
         except RequestException as e:
             LOGGER.exception("Failed to add download to Sabnzbd: ")
@@ -389,6 +400,11 @@ class Sabnzbd(BaseExternalClient):
         for entry in history_info.get('slots', []):
             if entry.get('nzo_id') == download_id:
                 status = entry.get('status', 'Failed')
+                fail_message = entry.get('fail_message', '')
+                LOGGER.debug(
+                    f"Found {download_id} in Sabnzbd history: "
+                    f"status={status}, fail_message={fail_message}"
+                )
                 state = self.STATE_MAPPING.get(status, DownloadState.FAILED_STATE)
 
                 size_bytes = int(entry.get('bytes', 0))

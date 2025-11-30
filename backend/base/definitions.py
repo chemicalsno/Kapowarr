@@ -557,6 +557,7 @@ class SearchResultData(FilenameData):
     link: str
     display_title: str
     source: str
+    age: Union[int, None]  # Age in days since publication
 
 
 class SearchResultMatchData(TypedDict):

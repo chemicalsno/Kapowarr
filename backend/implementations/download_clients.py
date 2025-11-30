@@ -941,7 +941,8 @@ class UsenetDownload(ExternalDownload, BaseDirectDownload):
         web_sub_title: Union[str, None],
 
         forced_match: bool = False,
-        external_client: Union[ExternalDownloadClient, None] = None
+        external_client: Union[ExternalDownloadClient, None] = None,
+        nzb_content: Union[bytes, None] = None
     ) -> None:
         """Initialize a Usenet download.
 
@@ -958,6 +959,8 @@ class UsenetDownload(ExternalDownload, BaseDirectDownload):
                 Defaults to False.
             external_client (Union[ExternalDownloadClient, None], optional):
                 Specific Sabnzbd client to use. Defaults to None (auto-select).
+            nzb_content (Union[bytes, None], optional): Pre-fetched NZB content.
+                If provided, skips re-fetching in run().
         """
         LOGGER.debug(
             'Creating Usenet download: %s',
@@ -988,6 +991,7 @@ class UsenetDownload(ExternalDownload, BaseDirectDownload):
         self._original_files: List[str] = []
         self._files: List[str] = []
         self._external_id: Union[str, None] = None
+        self._nzb_content: Union[bytes, None] = nzb_content
 
         if external_client:
             self._external_client = external_client
@@ -1031,8 +1035,7 @@ class UsenetDownload(ExternalDownload, BaseDirectDownload):
     def run(self) -> None:
         """Start the Usenet download by adding it to Sabnzbd.
 
-        Downloads and validates the NZB file before submission to ensure
-        it's a valid NZB and not an error response from the indexer.
+        Uses pre-fetched NZB content if available, otherwise fetches and validates.
 
         Raises:
             InvalidNzbException: If the NZB file is invalid.
@@ -1042,32 +1045,37 @@ class UsenetDownload(ExternalDownload, BaseDirectDownload):
             validate_nzb_url_response
         )
 
-        # Download the NZB file first to validate it
-        try:
-            ssn = Session()
-            nzb_response = ssn.get(self.download_link, timeout=30)
-            nzb_response.raise_for_status()
-            nzb_content = nzb_response.content
-        except RequestException as e:
-            LOGGER.error(f"Failed to download NZB from {self.download_link}: {e}")
-            raise LinkBroken(self.download_link)
+        # Use pre-fetched content if available, otherwise fetch
+        if self._nzb_content:
+            nzb_content = self._nzb_content
+            LOGGER.debug(f"Using pre-fetched NZB content for {self.title}")
+        else:
+            # Fallback: fetch the NZB file
+            try:
+                ssn = Session()
+                nzb_response = ssn.get(self.download_link, timeout=30)
+                nzb_response.raise_for_status()
+                nzb_content = nzb_response.content
+            except RequestException as e:
+                LOGGER.error(f"Failed to download NZB from {self.download_link}: {e}")
+                raise LinkBroken(self.download_link)
 
-        # Validate NZB before sending to Sabnzbd
-        validate_nzb_url_response(
-            nzb_content,
-            self.download_link
-        )
+            # Validate NZB before sending to Sabnzbd
+            validate_nzb_url_response(
+                nzb_content,
+                self.download_link
+            )
+            LOGGER.debug(f"NZB validation passed for {self.title}")
 
-        LOGGER.debug(f"NZB validation passed for {self.title}")
-
-        # Submit to Sabnzbd
+        # Submit NZB content directly to Sabnzbd (avoids double-fetch issues)
         self._external_id = self.external_client.add_download(
             self.download_link,
             RemoteMappings.local_to_remote(
                 self._external_client.id,
                 self._download_folder
             ),
-            self.title
+            self.title,
+            nzb_content=nzb_content
         )
         return
 
