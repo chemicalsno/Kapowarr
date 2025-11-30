@@ -1316,6 +1316,74 @@ def api_external_client(id: int):
 
 
 # =====================
+# Indexers
+# =====================
+@api.route('/indexers/nzbhydra/test', methods=['POST'])
+@error_handler
+@auth
+def api_nzbhydra_test():
+    """Test NZBHydra2 connection."""
+    import requests as req
+    
+    data: dict = request.get_json()
+    base_url = data.get('base_url', '').rstrip('/')
+    api_key = data.get('api_key', '')
+    
+    if not base_url:
+        return return_api({'success': False, 'description': 'Base URL is required'})
+    
+    # Test NZBHydra2 connection using the caps endpoint
+    try:
+        url = f"{base_url}/api"
+        params = {
+            'apikey': api_key,
+            't': 'caps',
+            'o': 'xml'
+        }
+        response = req.get(url, params=params, timeout=10)
+        
+        if not response.ok:
+            return return_api({
+                'success': False,
+                'description': f'HTTP {response.status_code}: {response.reason}'
+            })
+        
+        # Check if response is valid XML
+        from xml.etree import ElementTree
+        try:
+            root = ElementTree.fromstring(response.text)
+            if root.tag == 'error':
+                error_desc = root.get('description', 'Unknown error')
+                return return_api({
+                    'success': False,
+                    'description': error_desc
+                })
+        except ElementTree.ParseError:
+            return return_api({
+                'success': False,
+                'description': 'Invalid XML response from server'
+            })
+        
+        return return_api({'success': True, 'description': 'Connection successful'})
+        
+    except req.exceptions.ConnectionError:
+        return return_api({
+            'success': False,
+            'description': 'Could not connect to server'
+        })
+    except req.exceptions.Timeout:
+        return return_api({
+            'success': False,
+            'description': 'Connection timed out'
+        })
+    except Exception as e:
+        return return_api({
+            'success': False,
+            'description': str(e)
+        })
+
+
+# =====================
 # Mass Editor
 # =====================
 @api.route('/masseditor', methods=['POST'])

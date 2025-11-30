@@ -7,12 +7,13 @@ NZBHydra2 search integration.
 from typing import List
 from xml.etree import ElementTree
 
-from backend.base.definitions import SearchResultData, SearchSource
+from backend.base.definitions import DownloadType, SearchResultData, SearchSource
 from backend.base.file_extraction import (extract_issue_number,
                                           extract_year_from_date,
                                           extract_volume_number)
 from backend.base.helpers import AsyncSession
 from backend.base.logging import LOGGER
+from backend.implementations.external_clients import ExternalClients
 from backend.internals.settings import Settings
 
 
@@ -30,8 +31,17 @@ class HydraSearchSource(SearchSource):
         """
         settings = Settings().sv
 
-        # Skip if Usenet is not enabled or not configured
-        if not settings.usenet_enabled or not settings.nzbhydra_base_url:
+        # Skip if NZBHydra2 is not configured
+        if not settings.nzbhydra_base_url:
+            return []
+
+        # Skip if no Usenet download client is configured
+        usenet_clients = [
+            c for c in ExternalClients.get_clients()
+            if c['download_type'] == DownloadType.USENET.value
+        ]
+        if not usenet_clients:
+            LOGGER.debug("No Usenet client configured, skipping NZBHydra2 search")
             return []
 
         # Build Newznab API request

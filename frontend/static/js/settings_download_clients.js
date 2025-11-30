@@ -751,6 +751,82 @@ async function deleteRemoteMapping(id) {
 	document.querySelector(`#remote-mapping-list > tr[data-id="${id}"]`).remove()
 }
 
+//
+// NZBHydra2 Indexer functions
+//
+function loadNZBHydra(api_key) {
+	fetchAPI('/settings', api_key)
+	.then(json => {
+		document.querySelector('#nzbhydra-baseurl-input').value = json.result.nzbhydra_base_url || '';
+		document.querySelector('#nzbhydra-apikey-input').value = json.result.nzbhydra_api_key || '';
+		document.querySelector('#nzbhydra-categories-input').value = json.result.nzbhydra_categories || '';
+		document.querySelector('#sabnzbd-category-input').value = json.result.sabnzbd_category || '';
+		document.querySelector('#sabnzbd-priority-input').value = json.result.sabnzbd_priority || 'Normal';
+		
+		document.querySelector('#test-nzbhydra').classList.remove('show-success', 'show-fail');
+		hide([document.querySelector('#nzbhydra-error')]);
+		showWindow('nzbhydra-window');
+	});
+};
+
+function saveNZBHydra(api_key) {
+	const data = {
+		'nzbhydra_base_url': document.querySelector('#nzbhydra-baseurl-input').value,
+		'nzbhydra_api_key': document.querySelector('#nzbhydra-apikey-input').value,
+		'nzbhydra_categories': document.querySelector('#nzbhydra-categories-input').value,
+		'sabnzbd_category': document.querySelector('#sabnzbd-category-input').value,
+		'sabnzbd_priority': document.querySelector('#sabnzbd-priority-input').value
+	};
+	
+	sendAPI('PUT', '/settings', api_key, {}, data)
+	.then(response => {
+		closeWindow();
+	})
+	.catch(e => {
+		const error = document.querySelector('#nzbhydra-error');
+		error.innerText = 'Failed to save settings';
+		hide([], [error]);
+	});
+};
+
+async function testNZBHydra(api_key) {
+	const error = document.querySelector('#nzbhydra-error');
+	hide([error]);
+	const test_button = document.querySelector('#test-nzbhydra');
+	test_button.classList.remove('show-success', 'show-fail');
+	
+	const data = {
+		base_url: document.querySelector('#nzbhydra-baseurl-input').value,
+		api_key: document.querySelector('#nzbhydra-apikey-input').value
+	};
+	
+	if (!data.base_url) {
+		test_button.classList.add('show-fail');
+		error.innerText = 'Base URL is required';
+		hide([], [error]);
+		return false;
+	}
+	
+	return await sendAPI('POST', '/indexers/nzbhydra/test', api_key, {}, data)
+	.then(response => response.json())
+	.then(json => {
+		if (json.result.success) {
+			test_button.classList.add('show-success');
+			return true;
+		} else {
+			test_button.classList.add('show-fail');
+			error.innerText = json.result.description || 'Connection failed';
+			hide([], [error]);
+			return false;
+		}
+	})
+	.catch(e => {
+		test_button.classList.add('show-fail');
+		error.innerText = 'Connection failed';
+		hide([], [error]);
+		return false;
+	});
+};
 
 // code run on load
 
@@ -772,12 +848,17 @@ usingApiKey()
 	document.querySelector('#test-usenet-edit').onclick = e => testEditUsenet(api_key);
 	document.querySelector('#test-usenet-add').onclick = e => testAddUsenet(api_key);
 	document.querySelector('#add-usenet-client').onclick = e => loadUsenetList(api_key);
+	
+	// NZBHydra2 indexer event handlers
+	document.querySelector('#nzbhydra-indexer').onclick = e => loadNZBHydra(api_key);
+	document.querySelector('#test-nzbhydra').onclick = e => testNZBHydra(api_key);
 });
 
 document.querySelector('#edit-torrent-form').action = 'javascript:saveEditTorrent()';
 document.querySelector('#add-torrent-form').action = 'javascript:saveAddTorrent()';
 document.querySelector('#edit-usenet-form').action = 'javascript:saveEditUsenet()';
 document.querySelector('#add-usenet-form').action = 'javascript:saveAddUsenet()';
+document.querySelector('#nzbhydra-form').action = 'javascript:usingApiKey().then(api_key => saveNZBHydra(api_key))';
 document.querySelectorAll('#cred-container > form').forEach(
 	f => f.action = 'javascript:addCredential();'
 );

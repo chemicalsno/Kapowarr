@@ -6,10 +6,14 @@ Tests for Usenet-related functionality including:
 - Download client exceptions
 - Sabnzbd client methods
 - Encrypted download detection
+
+Converted to pytest format.
 """
 
-import unittest
+import gzip
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from backend.base.custom_exceptions import (
     DownloadClientAuthenticationException,
@@ -30,14 +34,18 @@ try:
 except ImportError:
     FULL_ENV_AVAILABLE = False
 
-# Decorator for tests that require the full Kapowarr environment
-requires_full_env = unittest.skipUnless(
-    FULL_ENV_AVAILABLE,
-    "Requires full Kapowarr environment with all dependencies"
+# Marker for tests that require the full Kapowarr environment
+requires_full_env = pytest.mark.skipif(
+    not FULL_ENV_AVAILABLE,
+    reason="Requires full Kapowarr environment with all dependencies"
 )
 
 
-class TestNzbValidation(unittest.TestCase):
+# =============================================================================
+# NZB Validation Tests
+# =============================================================================
+
+class TestNzbValidation:
     """Test cases for NZB file validation."""
 
     def test_valid_nzb_minimal(self):
@@ -83,21 +91,21 @@ class TestNzbValidation(unittest.TestCase):
 
     def test_invalid_nzb_empty_content(self):
         """Test that empty content raises InvalidNzbException."""
-        with self.assertRaises(InvalidNzbException) as ctx:
+        with pytest.raises(InvalidNzbException) as exc_info:
             validate_nzb(b'', "empty.nzb")
-        self.assertIn("Empty NZB content", str(ctx.exception.message))
+        assert "Empty NZB content" in str(exc_info.value.message)
 
     def test_invalid_nzb_not_xml(self):
         """Test that non-XML content raises InvalidNzbException."""
-        with self.assertRaises(InvalidNzbException) as ctx:
+        with pytest.raises(InvalidNzbException) as exc_info:
             validate_nzb(b'This is not XML at all', "notxml.nzb")
-        self.assertIn("Unable to parse XML", str(ctx.exception.message))
+        assert "Unable to parse XML" in str(exc_info.value.message)
 
     def test_invalid_nzb_malformed_xml(self):
         """Test that malformed XML raises InvalidNzbException."""
-        with self.assertRaises(InvalidNzbException) as ctx:
+        with pytest.raises(InvalidNzbException) as exc_info:
             validate_nzb(b'<nzb><file></nzb>', "malformed.nzb")
-        self.assertIn("Unable to parse XML", str(ctx.exception.message))
+        assert "Unable to parse XML" in str(exc_info.value.message)
 
     def test_invalid_nzb_wrong_root_element(self):
         """Test that wrong root element raises InvalidNzbException."""
@@ -105,29 +113,28 @@ class TestNzbValidation(unittest.TestCase):
 <rss version="2.0">
   <channel><title>Not an NZB</title></channel>
 </rss>'''
-        with self.assertRaises(InvalidNzbException) as ctx:
+        with pytest.raises(InvalidNzbException) as exc_info:
             validate_nzb(nzb_content, "rss.xml")
-        self.assertIn("Unexpected root element", str(ctx.exception.message))
-        self.assertIn("rss", str(ctx.exception.message))
+        assert "Unexpected root element" in str(exc_info.value.message)
+        assert "rss" in str(exc_info.value.message)
 
     def test_invalid_nzb_indexer_error(self):
         """Test that indexer error XML raises InvalidNzbException (nZEDb bug)."""
-        # This is what some broken indexers return instead of an NZB
         nzb_content = b'''<?xml version="1.0"?>
 <error code="100" description="Incorrect user credentials"/>'''
-        with self.assertRaises(InvalidNzbException) as ctx:
+        with pytest.raises(InvalidNzbException) as exc_info:
             validate_nzb(nzb_content, "error.nzb")
-        self.assertIn("indexer error", str(ctx.exception.message).lower())
-        self.assertIn("100", str(ctx.exception.message))
+        assert "indexer error" in str(exc_info.value.message).lower()
+        assert "100" in str(exc_info.value.message)
 
     def test_invalid_nzb_indexer_error_with_namespace(self):
         """Test indexer error detection with namespace."""
         nzb_content = b'''<?xml version="1.0"?>
 <error xmlns="http://www.newznab.com/DTD/2010/feeds/attributes/"
        code="201" description="API key invalid"/>'''
-        with self.assertRaises(InvalidNzbException) as ctx:
+        with pytest.raises(InvalidNzbException) as exc_info:
             validate_nzb(nzb_content)
-        self.assertIn("indexer error", str(ctx.exception.message).lower())
+        assert "indexer error" in str(exc_info.value.message).lower()
 
     def test_invalid_nzb_no_files(self):
         """Test that NZB with no file elements raises InvalidNzbException."""
@@ -135,19 +142,19 @@ class TestNzbValidation(unittest.TestCase):
 <nzb xmlns="http://www.newzbin.com/DTD/2003/nzb">
   <!-- No file elements -->
 </nzb>'''
-        with self.assertRaises(InvalidNzbException) as ctx:
+        with pytest.raises(InvalidNzbException) as exc_info:
             validate_nzb(nzb_content, "nofiles.nzb")
-        self.assertIn("No files found", str(ctx.exception.message))
+        assert "No files found" in str(exc_info.value.message)
 
     def test_invalid_nzb_empty_nzb_element(self):
         """Test NZB with empty nzb root element."""
         nzb_content = b'<nzb></nzb>'
-        with self.assertRaises(InvalidNzbException) as ctx:
+        with pytest.raises(InvalidNzbException) as exc_info:
             validate_nzb(nzb_content)
-        self.assertIn("No files found", str(ctx.exception.message))
+        assert "No files found" in str(exc_info.value.message)
 
 
-class TestNzbUrlValidation(unittest.TestCase):
+class TestNzbUrlValidation:
     """Test cases for NZB URL response validation."""
 
     def test_valid_response(self):
@@ -163,9 +170,9 @@ class TestNzbUrlValidation(unittest.TestCase):
 
     def test_empty_response(self):
         """Test that empty response raises InvalidNzbException."""
-        with self.assertRaises(InvalidNzbException) as ctx:
+        with pytest.raises(InvalidNzbException) as exc_info:
             validate_nzb_url_response(b'', "http://example.com/test.nzb")
-        self.assertIn("Empty response", str(ctx.exception.message))
+        assert "Empty response" in str(exc_info.value.message)
 
     def test_html_error_page(self):
         """Test that HTML error page is detected."""
@@ -174,136 +181,126 @@ class TestNzbUrlValidation(unittest.TestCase):
 <head><title>Error</title></head>
 <body><h1>404 Not Found</h1></body>
 </html>'''
-        with self.assertRaises(InvalidNzbException) as ctx:
+        with pytest.raises(InvalidNzbException) as exc_info:
             validate_nzb_url_response(html_content, "http://example.com/test.nzb")
-        self.assertIn("HTML instead of NZB", str(ctx.exception.message))
+        assert "HTML instead of NZB" in str(exc_info.value.message)
 
     def test_html_without_doctype(self):
         """Test HTML detection without DOCTYPE."""
         html_content = b'<html><body>Error page</body></html>'
-        with self.assertRaises(InvalidNzbException) as ctx:
+        with pytest.raises(InvalidNzbException) as exc_info:
             validate_nzb_url_response(html_content, "http://example.com/test.nzb")
-        self.assertIn("HTML instead of NZB", str(ctx.exception.message))
+        assert "HTML instead of NZB" in str(exc_info.value.message)
 
 
-class TestDownloadClientExceptions(unittest.TestCase):
+# =============================================================================
+# Download Client Exception Tests
+# =============================================================================
+
+class TestDownloadClientExceptions:
     """Test cases for download client exception classes."""
 
     def test_download_client_exception_base(self):
         """Test base DownloadClientException."""
         exc = DownloadClientException("Test error")
-        self.assertEqual(exc.message, "Test error")
-        self.assertEqual(exc.api_response['code'], 400)
-        self.assertEqual(exc.api_response['error'], "DownloadClientException")
+        assert exc.message == "Test error"
+        assert exc.api_response['code'] == 400
+        assert exc.api_response['error'] == "DownloadClientException"
 
     def test_download_client_exception_default_message(self):
         """Test DownloadClientException with default message."""
         exc = DownloadClientException()
-        self.assertEqual(exc.message, "Download client error")
+        assert exc.message == "Download client error"
 
     def test_download_client_unavailable_exception(self):
         """Test DownloadClientUnavailableException."""
         exc = DownloadClientUnavailableException("Connection timeout")
-        self.assertEqual(exc.message, "Connection timeout")
-        self.assertEqual(exc.api_response['code'], 503)
-        self.assertEqual(
-            exc.api_response['error'],
-            "DownloadClientUnavailableException"
-        )
+        assert exc.message == "Connection timeout"
+        assert exc.api_response['code'] == 503
+        assert exc.api_response['error'] == "DownloadClientUnavailableException"
 
     def test_download_client_auth_exception(self):
         """Test DownloadClientAuthenticationException."""
         exc = DownloadClientAuthenticationException("Invalid API key")
-        self.assertEqual(exc.message, "Invalid API key")
-        self.assertEqual(exc.api_response['code'], 401)
+        assert exc.message == "Invalid API key"
+        assert exc.api_response['code'] == 401
 
     def test_invalid_nzb_exception(self):
         """Test InvalidNzbException."""
         exc = InvalidNzbException("No files in NZB")
-        self.assertEqual(exc.message, "No files in NZB")
-        self.assertEqual(exc.api_response['code'], 400)
-        self.assertEqual(exc.api_response['error'], "InvalidNzbException")
+        assert exc.message == "No files in NZB"
+        assert exc.api_response['code'] == 400
+        assert exc.api_response['error'] == "InvalidNzbException"
 
     def test_encrypted_download_exception(self):
         """Test EncryptedDownloadException."""
         exc = EncryptedDownloadException()
-        self.assertIn("encrypted", exc.message.lower())
-        self.assertEqual(exc.api_response['code'], 400)
+        assert "encrypted" in exc.message.lower()
+        assert exc.api_response['code'] == 400
 
     def test_exception_inheritance(self):
         """Test that specific exceptions inherit from base."""
-        self.assertTrue(
-            issubclass(DownloadClientUnavailableException, DownloadClientException)
-        )
-        self.assertTrue(
-            issubclass(DownloadClientAuthenticationException, DownloadClientException)
-        )
-        self.assertTrue(
-            issubclass(InvalidNzbException, DownloadClientException)
-        )
-        self.assertTrue(
-            issubclass(EncryptedDownloadException, DownloadClientException)
-        )
+        assert issubclass(DownloadClientUnavailableException, DownloadClientException)
+        assert issubclass(DownloadClientAuthenticationException, DownloadClientException)
+        assert issubclass(InvalidNzbException, DownloadClientException)
+        assert issubclass(EncryptedDownloadException, DownloadClientException)
 
 
-class TestSabnzbdEncryptedDetection(unittest.TestCase):
+# =============================================================================
+# Sabnzbd Detection Tests
+# =============================================================================
+
+class TestSabnzbdEncryptedDetection:
     """Test encrypted download detection in Sabnzbd responses."""
 
     def test_detect_encrypted_in_queue_title(self):
         """Test detection of ENCRYPTED / prefix in queue title."""
         title = "ENCRYPTED /Batman (2020) Issue 5.nzb"
         is_encrypted = title.startswith('ENCRYPTED /')
-        self.assertTrue(is_encrypted)
+        assert is_encrypted
 
         # Strip prefix
         clean_title = title[11:] if is_encrypted else title
-        self.assertEqual(clean_title, "Batman (2020) Issue 5.nzb")
+        assert clean_title == "Batman (2020) Issue 5.nzb"
 
     def test_no_encrypted_prefix(self):
         """Test normal title without encryption prefix."""
         title = "Batman (2020) Issue 5.nzb"
         is_encrypted = title.startswith('ENCRYPTED /')
-        self.assertFalse(is_encrypted)
+        assert not is_encrypted
 
-    def test_detect_encrypted_in_fail_message(self):
+    @pytest.mark.parametrize("msg", [
+        "Unpacking failed, archive requires a password",
+        "Download is encrypted",
+        "Password protected archive",
+        "ENCRYPTED archive detected",
+    ])
+    def test_detect_encrypted_in_fail_message(self, msg):
         """Test detection of encryption in fail_message."""
-        fail_messages = [
-            "Unpacking failed, archive requires a password",
-            "Download is encrypted",
-            "Password protected archive",
-            "ENCRYPTED archive detected",
-        ]
-        for msg in fail_messages:
-            is_encrypted = 'encrypted' in msg.lower() or 'password' in msg.lower()
-            self.assertTrue(
-                is_encrypted,
-                f"Should detect encryption in: {msg}"
-            )
+        is_encrypted = 'encrypted' in msg.lower() or 'password' in msg.lower()
+        assert is_encrypted, f"Should detect encryption in: {msg}"
 
-    def test_normal_fail_message(self):
+    @pytest.mark.parametrize("msg", [
+        "Download failed: incomplete",
+        "Server error",
+        "Missing articles",
+        "",
+    ])
+    def test_normal_fail_message(self, msg):
         """Test that normal fail messages don't trigger encryption detection."""
-        fail_messages = [
-            "Download failed: incomplete",
-            "Server error",
-            "Missing articles",
-            "",
-        ]
-        for msg in fail_messages:
-            is_encrypted = 'encrypted' in msg.lower() or 'password' in msg.lower()
-            self.assertFalse(
-                is_encrypted,
-                f"Should not detect encryption in: {msg}"
-            )
+        is_encrypted = 'encrypted' in msg.lower() or 'password' in msg.lower()
+        assert not is_encrypted, f"Should not detect encryption in: {msg}"
 
 
-class TestSabnzbdStateMappings(unittest.TestCase):
+class TestSabnzbdStateMappings:
     """Test Sabnzbd state to Kapowarr state mappings."""
 
-    def setUp(self):
+    @pytest.fixture
+    def state_mapping(self):
         """Set up state mapping for tests."""
         from backend.base.definitions import DownloadState
 
-        self.STATE_MAPPING = {
+        return {
             'Queued': DownloadState.QUEUED_STATE,
             'Paused': DownloadState.QUEUED_STATE,
             'Grabbing': DownloadState.QUEUED_STATE,
@@ -318,55 +315,41 @@ class TestSabnzbdStateMappings(unittest.TestCase):
             'Completed': DownloadState.IMPORTING_STATE,
             'Failed': DownloadState.FAILED_STATE,
         }
-        self.DownloadState = DownloadState
 
-    def test_queue_states(self):
+    @pytest.mark.parametrize("state", ['Queued', 'Paused', 'Grabbing'])
+    def test_queue_states(self, state, state_mapping):
         """Test that queue states map correctly."""
-        queue_states = ['Queued', 'Paused', 'Grabbing']
-        for state in queue_states:
-            self.assertEqual(
-                self.STATE_MAPPING[state],
-                self.DownloadState.QUEUED_STATE,
-                f"{state} should map to QUEUED_STATE"
-            )
+        from backend.base.definitions import DownloadState
+        assert state_mapping[state] == DownloadState.QUEUED_STATE
 
-    def test_downloading_states(self):
+    @pytest.mark.parametrize("state", [
+        'Downloading', 'Idle', 'Running', 'Verifying',
+        'Repairing', 'QuickCheck', 'Extracting'
+    ])
+    def test_downloading_states(self, state, state_mapping):
         """Test that downloading/processing states map correctly."""
-        dl_states = [
-            'Downloading', 'Idle', 'Running', 'Verifying',
-            'Repairing', 'QuickCheck', 'Extracting'
-        ]
-        for state in dl_states:
-            self.assertEqual(
-                self.STATE_MAPPING[state],
-                self.DownloadState.DOWNLOADING_STATE,
-                f"{state} should map to DOWNLOADING_STATE"
-            )
+        from backend.base.definitions import DownloadState
+        assert state_mapping[state] == DownloadState.DOWNLOADING_STATE
 
-    def test_completed_states(self):
+    @pytest.mark.parametrize("state", ['Moving', 'Completed'])
+    def test_completed_states(self, state, state_mapping):
         """Test that completed states map correctly."""
-        completed_states = ['Moving', 'Completed']
-        for state in completed_states:
-            self.assertEqual(
-                self.STATE_MAPPING[state],
-                self.DownloadState.IMPORTING_STATE,
-                f"{state} should map to IMPORTING_STATE"
-            )
+        from backend.base.definitions import DownloadState
+        assert state_mapping[state] == DownloadState.IMPORTING_STATE
 
-    def test_failed_state(self):
+    def test_failed_state(self, state_mapping):
         """Test that failed state maps correctly."""
-        self.assertEqual(
-            self.STATE_MAPPING['Failed'],
-            self.DownloadState.FAILED_STATE
-        )
+        from backend.base.definitions import DownloadState
+        assert state_mapping['Failed'] == DownloadState.FAILED_STATE
 
 
-class TestSabnzbdPriorityMappings(unittest.TestCase):
+class TestSabnzbdPriorityMappings:
     """Test Sabnzbd priority mappings."""
 
-    def setUp(self):
+    @pytest.fixture
+    def priority_mapping(self):
         """Set up priority mapping for tests."""
-        self.PRIORITY_MAPPING = {
+        return {
             'Default': -100,
             'Paused': -2,
             'Low': -1,
@@ -375,61 +358,40 @@ class TestSabnzbdPriorityMappings(unittest.TestCase):
             'Force': 2,
         }
 
-    def test_all_priorities_exist(self):
+    @pytest.mark.parametrize("priority", ['Default', 'Paused', 'Low', 'Normal', 'High', 'Force'])
+    def test_all_priorities_exist(self, priority, priority_mapping):
         """Test that all expected priority levels exist."""
-        expected = ['Default', 'Paused', 'Low', 'Normal', 'High', 'Force']
-        for priority in expected:
-            self.assertIn(priority, self.PRIORITY_MAPPING)
+        assert priority in priority_mapping
 
-    def test_priority_ordering(self):
+    def test_priority_ordering(self, priority_mapping):
         """Test that priorities are in correct order."""
-        self.assertLess(
-            self.PRIORITY_MAPPING['Paused'],
-            self.PRIORITY_MAPPING['Low']
-        )
-        self.assertLess(
-            self.PRIORITY_MAPPING['Low'],
-            self.PRIORITY_MAPPING['Normal']
-        )
-        self.assertLess(
-            self.PRIORITY_MAPPING['Normal'],
-            self.PRIORITY_MAPPING['High']
-        )
-        self.assertLess(
-            self.PRIORITY_MAPPING['High'],
-            self.PRIORITY_MAPPING['Force']
-        )
+        assert priority_mapping['Paused'] < priority_mapping['Low']
+        assert priority_mapping['Low'] < priority_mapping['Normal']
+        assert priority_mapping['Normal'] < priority_mapping['High']
+        assert priority_mapping['High'] < priority_mapping['Force']
 
-    def test_default_is_special(self):
+    def test_default_is_special(self, priority_mapping):
         """Test that Default priority is special value."""
-        self.assertEqual(self.PRIORITY_MAPPING['Default'], -100)
+        assert priority_mapping['Default'] == -100
 
 
-class TestSabnzbdVersionCheck(unittest.TestCase):
+class TestSabnzbdVersionCheck:
     """Test Sabnzbd version checking logic."""
 
-    def test_version_comparison(self):
-        """Test version string comparison."""
-        MIN_VERSION = '3.0.0'
+    MIN_VERSION = '3.0.0'
 
-        # Versions that should pass
-        passing = ['3.0.0', '3.0.1', '3.1.0', '4.0.0', '4.2.1']
-        for version in passing:
-            self.assertGreaterEqual(
-                version, MIN_VERSION,
-                f"Version {version} should pass minimum check"
-            )
+    @pytest.mark.parametrize("version", ['3.0.0', '3.0.1', '3.1.0', '4.0.0', '4.2.1'])
+    def test_version_passing(self, version):
+        """Test versions that should pass minimum check."""
+        assert version >= self.MIN_VERSION
 
-        # Versions that should fail
-        failing = ['2.9.9', '2.0.0', '1.0.0']
-        for version in failing:
-            self.assertLess(
-                version, MIN_VERSION,
-                f"Version {version} should fail minimum check"
-            )
+    @pytest.mark.parametrize("version", ['2.9.9', '2.0.0', '1.0.0'])
+    def test_version_failing(self, version):
+        """Test versions that should fail minimum check."""
+        assert version < self.MIN_VERSION
 
 
-class TestSabnzbdConfigWarnings(unittest.TestCase):
+class TestSabnzbdConfigWarnings:
     """Test Sabnzbd configuration warning detection."""
 
     def test_pre_check_warning(self):
@@ -438,8 +400,8 @@ class TestSabnzbdConfigWarnings(unittest.TestCase):
         warnings = []
         if config.get('misc', {}).get('pre_check', False):
             warnings.append("Pre-check is enabled")
-        self.assertEqual(len(warnings), 1)
-        self.assertIn("Pre-check", warnings[0])
+        assert len(warnings) == 1
+        assert "Pre-check" in warnings[0]
 
     def test_tv_sorting_warning(self):
         """Test TV sorting warning detection."""
@@ -447,7 +409,7 @@ class TestSabnzbdConfigWarnings(unittest.TestCase):
         warnings = []
         if config.get('misc', {}).get('enable_tv_sorting', False):
             warnings.append("TV sorting is enabled")
-        self.assertEqual(len(warnings), 1)
+        assert len(warnings) == 1
 
     def test_movie_sorting_warning(self):
         """Test movie sorting warning detection."""
@@ -455,31 +417,23 @@ class TestSabnzbdConfigWarnings(unittest.TestCase):
         warnings = []
         if config.get('misc', {}).get('enable_movie_sorting', False):
             warnings.append("Movie sorting is enabled")
-        self.assertEqual(len(warnings), 1)
+        assert len(warnings) == 1
 
-    def test_history_retention_warning(self):
-        """Test history retention warning detection."""
-        # Should warn
-        warn_values = ['7', '30', 7, 30]
-        for val in warn_values:
-            warnings = []
-            if val not in ('0', '-1', 0, -1):
-                warnings.append("History retention limited")
-            self.assertEqual(
-                len(warnings), 1,
-                f"Should warn for history_retention={val}"
-            )
+    @pytest.mark.parametrize("val", ['7', '30', 7, 30])
+    def test_history_retention_warning(self, val):
+        """Test history retention warning detection - should warn."""
+        warnings = []
+        if val not in ('0', '-1', 0, -1):
+            warnings.append("History retention limited")
+        assert len(warnings) == 1
 
-        # Should not warn
-        ok_values = ['0', '-1', 0, -1]
-        for val in ok_values:
-            warnings = []
-            if val not in ('0', '-1', 0, -1):
-                warnings.append("History retention limited")
-            self.assertEqual(
-                len(warnings), 0,
-                f"Should not warn for history_retention={val}"
-            )
+    @pytest.mark.parametrize("val", ['0', '-1', 0, -1])
+    def test_history_retention_ok(self, val):
+        """Test history retention values that should not warn."""
+        warnings = []
+        if val not in ('0', '-1', 0, -1):
+            warnings.append("History retention limited")
+        assert len(warnings) == 0
 
     def test_clean_config(self):
         """Test config with no problematic settings."""
@@ -502,14 +456,19 @@ class TestSabnzbdConfigWarnings(unittest.TestCase):
         if misc.get('history_retention', '0') not in ('0', '-1', 0, -1):
             warnings.append("History retention limited")
 
-        self.assertEqual(len(warnings), 0)
+        assert len(warnings) == 0
 
+
+# =============================================================================
+# Sabnzbd Client Tests (Mocked)
+# =============================================================================
 
 @requires_full_env
-class TestSabnzbdClientMocked(unittest.TestCase):
+class TestSabnzbdClientMocked:
     """Test Sabnzbd client methods with mocked HTTP responses."""
 
-    def _create_mock_response(self, json_data, status_code=200, ok=True):
+    @staticmethod
+    def _create_mock_response(json_data, status_code=200, ok=True):
         """Helper to create a mock response object."""
         mock_resp = MagicMock()
         mock_resp.json.return_value = json_data
@@ -529,9 +488,7 @@ class TestSabnzbdClientMocked(unittest.TestCase):
         mock_session = MagicMock()
         MockSession.return_value = mock_session
 
-        # Mock version response
         version_resp = self._create_mock_response({'version': '4.0.0'})
-        # Mock config response
         config_resp = self._create_mock_response({
             'config': {
                 'misc': {
@@ -551,10 +508,10 @@ class TestSabnzbdClientMocked(unittest.TestCase):
             api_token='test_api_key'
         )
 
-        self.assertTrue(result['success'])
-        self.assertIn('4.0.0', result['message'])
-        self.assertEqual(result['version'], '4.0.0')
-        self.assertEqual(len(result['warnings']), 0)
+        assert result['success']
+        assert '4.0.0' in result['message']
+        assert result['version'] == '4.0.0'
+        assert len(result['warnings']) == 0
 
     @patch('backend.implementations.usenet_clients.Sabnzbd.Session')
     def test_test_connection_with_warnings(self, MockSession):
@@ -568,9 +525,9 @@ class TestSabnzbdClientMocked(unittest.TestCase):
         config_resp = self._create_mock_response({
             'config': {
                 'misc': {
-                    'pre_check': True,  # Should warn
-                    'enable_tv_sorting': True,  # Should warn
-                    'history_retention': '7'  # Should warn
+                    'pre_check': True,
+                    'enable_tv_sorting': True,
+                    'history_retention': '7'
                 }
             }
         })
@@ -583,8 +540,8 @@ class TestSabnzbdClientMocked(unittest.TestCase):
             api_token='test_api_key'
         )
 
-        self.assertTrue(result['success'])
-        self.assertGreater(len(result['warnings']), 0)
+        assert result['success']
+        assert len(result['warnings']) > 0
 
     @patch('backend.implementations.usenet_clients.Sabnzbd.Session')
     def test_test_connection_old_version(self, MockSession):
@@ -605,11 +562,8 @@ class TestSabnzbdClientMocked(unittest.TestCase):
             api_token='test_api_key'
         )
 
-        self.assertTrue(result['success'])
-        # Should have version warning
-        self.assertTrue(
-            any('version' in w.lower() for w in result['warnings'])
-        )
+        assert result['success']
+        assert any('version' in w.lower() for w in result['warnings'])
 
     @patch('backend.implementations.usenet_clients.Sabnzbd.Session')
     def test_test_connection_invalid_api_key(self, MockSession):
@@ -620,13 +574,10 @@ class TestSabnzbdClientMocked(unittest.TestCase):
         mock_session = MagicMock()
         MockSession.return_value = mock_session
 
-        # Sabnzbd returns error in JSON when API key is invalid
-        error_resp = self._create_mock_response({
-            'error': 'API Key Incorrect'
-        })
+        error_resp = self._create_mock_response({'error': 'API Key Incorrect'})
         mock_session.get.return_value = error_resp
 
-        with self.assertRaises(CredentialInvalid):
+        with pytest.raises(CredentialInvalid):
             Sabnzbd.test(
                 base_url='http://localhost:8080',
                 username=None,
@@ -640,7 +591,7 @@ class TestSabnzbdClientMocked(unittest.TestCase):
         from backend.implementations.usenet_clients.Sabnzbd import Sabnzbd
         from backend.base.custom_exceptions import CredentialInvalid
 
-        with self.assertRaises(CredentialInvalid):
+        with pytest.raises(CredentialInvalid):
             Sabnzbd.test(
                 base_url='http://localhost:8080',
                 username=None,
@@ -659,7 +610,7 @@ class TestSabnzbdClientMocked(unittest.TestCase):
         MockSession.return_value = mock_session
         mock_session.get.side_effect = RequestException("Connection refused")
 
-        with self.assertRaises(ClientNotWorking):
+        with pytest.raises(ClientNotWorking):
             Sabnzbd.test(
                 base_url='http://localhost:8080',
                 username=None,
@@ -669,62 +620,65 @@ class TestSabnzbdClientMocked(unittest.TestCase):
 
 
 @requires_full_env
-class TestSabnzbdAddDownload(unittest.TestCase):
+class TestSabnzbdAddDownload:
     """Test Sabnzbd add_download method."""
 
-    def setUp(self):
-        """Set up test fixtures."""
-        self.mock_session = MagicMock()
-        self.mock_settings = MagicMock()
-        self.mock_settings.sv.sabnzbd_category = 'comics'
-        self.mock_settings.sv.sabnzbd_priority = 'Normal'
+    @pytest.fixture
+    def mock_session(self):
+        """Create mock session."""
+        return MagicMock()
 
-    def _create_sabnzbd_client(self):
-        """Helper to create a Sabnzbd client for testing."""
+    @pytest.fixture
+    def mock_settings(self):
+        """Create mock settings."""
+        settings = MagicMock()
+        settings.sv.sabnzbd_category = 'comics'
+        settings.sv.sabnzbd_priority = 'Normal'
+        return settings
+
+    @pytest.fixture
+    def sabnzbd_client(self, mock_session, mock_settings):
+        """Create a Sabnzbd client for testing."""
         from backend.implementations.usenet_clients.Sabnzbd import Sabnzbd
 
         client = Sabnzbd.__new__(Sabnzbd)
-        client.ssn = self.mock_session
+        client.ssn = mock_session
         client._api_token = 'test_key'
         client._base_url = 'http://localhost:8080'
-        client.settings = self.mock_settings
+        client.settings = mock_settings
         return client
 
-    def test_add_download_success(self):
+    def test_add_download_success(self, sabnzbd_client, mock_session):
         """Test successful download addition."""
-        client = self._create_sabnzbd_client()
-
         mock_resp = MagicMock()
         mock_resp.json.return_value = {
             'status': True,
             'nzo_ids': ['SABnzbd_nzo_abc123']
         }
-        self.mock_session.post.return_value = mock_resp
+        mock_session.post.return_value = mock_resp
 
-        nzo_id = client.add_download(
+        nzo_id = sabnzbd_client.add_download(
             download_link='http://indexer.com/nzb/123',
             target_folder='/downloads',
             download_name='Batman 2020 Issue 5'
         )
 
-        self.assertEqual(nzo_id, 'SABnzbd_nzo_abc123')
-        self.mock_session.post.assert_called_once()
+        assert nzo_id == 'SABnzbd_nzo_abc123'
+        mock_session.post.assert_called_once()
 
-    def test_add_download_failure(self):
+    def test_add_download_failure(self, sabnzbd_client, mock_session):
         """Test failed download addition."""
         from backend.base.custom_exceptions import EnqueuingDownloadFailure
-
-        client = self._create_sabnzbd_client()
 
         mock_resp = MagicMock()
         mock_resp.json.return_value = {
             'status': False,
             'error': 'NZB file not found'
         }
-        self.mock_session.post.return_value = mock_resp
+        mock_session.post.return_value = mock_resp
 
-        with self.assertRaises(EnqueuingDownloadFailure):
-            client.add_download(
+        with pytest.raises(EnqueuingDownloadFailure):
+            sabnzbd_client.add_download(
                 download_link='http://indexer.com/nzb/invalid',
                 target_folder='/downloads',
                 download_name='Invalid NZB'
@@ -732,30 +686,29 @@ class TestSabnzbdAddDownload(unittest.TestCase):
 
 
 @requires_full_env
-class TestSabnzbdGetDownload(unittest.TestCase):
+class TestSabnzbdGetDownload:
     """Test Sabnzbd get_download method."""
 
-    def setUp(self):
-        """Set up test fixtures."""
-        self.mock_session = MagicMock()
+    @pytest.fixture
+    def mock_session(self):
+        """Create mock session."""
+        return MagicMock()
 
-    def _create_sabnzbd_client(self):
-        """Helper to create a Sabnzbd client for testing."""
+    @pytest.fixture
+    def sabnzbd_client(self, mock_session):
+        """Create a Sabnzbd client for testing."""
         from backend.implementations.usenet_clients.Sabnzbd import Sabnzbd
 
         client = Sabnzbd.__new__(Sabnzbd)
-        client.ssn = self.mock_session
+        client.ssn = mock_session
         client._api_token = 'test_key'
         client._base_url = 'http://localhost:8080'
         return client
 
-    def test_get_download_from_queue(self):
+    def test_get_download_from_queue(self, sabnzbd_client, mock_session):
         """Test getting download status from queue."""
         from backend.base.definitions import DownloadState
 
-        client = self._create_sabnzbd_client()
-
-        # Mock queue response with our download
         queue_resp = MagicMock()
         queue_resp.json.return_value = {
             'queue': {
@@ -769,22 +722,19 @@ class TestSabnzbdGetDownload(unittest.TestCase):
                 }]
             }
         }
-        self.mock_session.get.return_value = queue_resp
+        mock_session.get.return_value = queue_resp
 
-        result = client.get_download('SABnzbd_nzo_abc123')
+        result = sabnzbd_client.get_download('SABnzbd_nzo_abc123')
 
-        self.assertIsNotNone(result)
-        self.assertEqual(result['state'], DownloadState.DOWNLOADING_STATE)
-        self.assertEqual(result['progress'], 75.0)  # 100 - 25
-        self.assertFalse(result['is_encrypted'])
+        assert result is not None
+        assert result['state'] == DownloadState.DOWNLOADING_STATE
+        assert result['progress'] == 75.0  # 100 - 25
+        assert not result['is_encrypted']
 
-    def test_get_download_from_history(self):
+    def test_get_download_from_history(self, sabnzbd_client, mock_session):
         """Test getting completed download from history."""
         from backend.base.definitions import DownloadState
 
-        client = self._create_sabnzbd_client()
-
-        # Mock empty queue, then history with completed download
         queue_resp = MagicMock()
         queue_resp.json.return_value = {'queue': {'slots': []}}
 
@@ -800,37 +750,31 @@ class TestSabnzbdGetDownload(unittest.TestCase):
                 }]
             }
         }
-        self.mock_session.get.side_effect = [queue_resp, history_resp]
+        mock_session.get.side_effect = [queue_resp, history_resp]
 
-        result = client.get_download('SABnzbd_nzo_abc123')
+        result = sabnzbd_client.get_download('SABnzbd_nzo_abc123')
 
-        self.assertIsNotNone(result)
-        self.assertEqual(result['state'], DownloadState.IMPORTING_STATE)
-        self.assertEqual(result['progress'], 100.0)
-        self.assertIn('storage_path', result)
+        assert result is not None
+        assert result['state'] == DownloadState.IMPORTING_STATE
+        assert result['progress'] == 100.0
+        assert 'storage_path' in result
 
-    def test_get_download_not_found(self):
+    def test_get_download_not_found(self, sabnzbd_client, mock_session):
         """Test getting non-existent download."""
-        client = self._create_sabnzbd_client()
-
         queue_resp = MagicMock()
         queue_resp.json.return_value = {'queue': {'slots': []}}
 
         history_resp = MagicMock()
         history_resp.json.return_value = {'history': {'slots': []}}
 
-        self.mock_session.get.side_effect = [queue_resp, history_resp]
+        mock_session.get.side_effect = [queue_resp, history_resp]
 
-        result = client.get_download('nonexistent_id')
+        result = sabnzbd_client.get_download('nonexistent_id')
 
-        self.assertIsNone(result)
+        assert result is None
 
-    def test_get_download_encrypted_in_queue(self):
+    def test_get_download_encrypted_in_queue(self, sabnzbd_client, mock_session):
         """Test detecting encrypted download in queue."""
-        from backend.base.definitions import DownloadState
-
-        client = self._create_sabnzbd_client()
-
         queue_resp = MagicMock()
         queue_resp.json.return_value = {
             'queue': {
@@ -844,19 +788,17 @@ class TestSabnzbdGetDownload(unittest.TestCase):
                 }]
             }
         }
-        self.mock_session.get.return_value = queue_resp
+        mock_session.get.return_value = queue_resp
 
-        result = client.get_download('SABnzbd_nzo_encrypted')
+        result = sabnzbd_client.get_download('SABnzbd_nzo_encrypted')
 
-        self.assertIsNotNone(result)
-        self.assertTrue(result['is_encrypted'])
-        self.assertEqual(result['title'], 'Batman.2020.Issue.5.nzb')
+        assert result is not None
+        assert result['is_encrypted']
+        assert result['title'] == 'Batman.2020.Issue.5.nzb'
 
-    def test_get_download_encrypted_in_history(self):
+    def test_get_download_encrypted_in_history(self, sabnzbd_client, mock_session):
         """Test detecting encrypted download in history via fail_message."""
         from backend.base.definitions import DownloadState
-
-        client = self._create_sabnzbd_client()
 
         queue_resp = MagicMock()
         queue_resp.json.return_value = {'queue': {'slots': []}}
@@ -873,54 +815,52 @@ class TestSabnzbdGetDownload(unittest.TestCase):
                 }]
             }
         }
-        self.mock_session.get.side_effect = [queue_resp, history_resp]
+        mock_session.get.side_effect = [queue_resp, history_resp]
 
-        result = client.get_download('SABnzbd_nzo_encrypted')
+        result = sabnzbd_client.get_download('SABnzbd_nzo_encrypted')
 
-        self.assertIsNotNone(result)
-        self.assertTrue(result['is_encrypted'])
-        self.assertEqual(result['state'], DownloadState.FAILED_STATE)
+        assert result is not None
+        assert result['is_encrypted']
+        assert result['state'] == DownloadState.FAILED_STATE
 
 
 @requires_full_env
-class TestSabnzbdRetryDownload(unittest.TestCase):
+class TestSabnzbdRetryDownload:
     """Test Sabnzbd retry_download method."""
 
-    def setUp(self):
-        """Set up test fixtures."""
-        self.mock_session = MagicMock()
+    @pytest.fixture
+    def mock_session(self):
+        """Create mock session."""
+        return MagicMock()
 
-    def _create_sabnzbd_client(self):
-        """Helper to create a Sabnzbd client for testing."""
+    @pytest.fixture
+    def sabnzbd_client(self, mock_session):
+        """Create a Sabnzbd client for testing."""
         from backend.implementations.usenet_clients.Sabnzbd import Sabnzbd
 
         client = Sabnzbd.__new__(Sabnzbd)
-        client.ssn = self.mock_session
+        client.ssn = mock_session
         client._api_token = 'test_key'
         client._base_url = 'http://localhost:8080'
         return client
 
-    def test_retry_download_success(self):
+    def test_retry_download_success(self, sabnzbd_client, mock_session):
         """Test successful download retry."""
-        client = self._create_sabnzbd_client()
-
         mock_resp = MagicMock()
         mock_resp.json.return_value = {
             'status': True,
             'nzo_ids': ['SABnzbd_nzo_new123']
         }
         mock_resp.raise_for_status = MagicMock()
-        self.mock_session.get.return_value = mock_resp
+        mock_session.get.return_value = mock_resp
 
-        new_id = client.retry_download('SABnzbd_nzo_old123')
+        new_id = sabnzbd_client.retry_download('SABnzbd_nzo_old123')
 
-        self.assertEqual(new_id, 'SABnzbd_nzo_new123')
+        assert new_id == 'SABnzbd_nzo_new123'
 
-    def test_retry_download_failure(self):
+    def test_retry_download_failure(self, sabnzbd_client, mock_session):
         """Test failed download retry."""
         from backend.base.custom_exceptions import DownloadClientException
-
-        client = self._create_sabnzbd_client()
 
         mock_resp = MagicMock()
         mock_resp.json.return_value = {
@@ -928,78 +868,75 @@ class TestSabnzbdRetryDownload(unittest.TestCase):
             'error': 'Job not found in history'
         }
         mock_resp.raise_for_status = MagicMock()
-        self.mock_session.get.return_value = mock_resp
+        mock_session.get.return_value = mock_resp
 
-        with self.assertRaises(DownloadClientException):
-            client.retry_download('nonexistent_id')
+        with pytest.raises(DownloadClientException):
+            sabnzbd_client.retry_download('nonexistent_id')
 
-    def test_retry_download_no_new_id(self):
+    def test_retry_download_no_new_id(self, sabnzbd_client, mock_session):
         """Test retry when no new ID is returned."""
         from backend.base.custom_exceptions import DownloadClientException
-
-        client = self._create_sabnzbd_client()
 
         mock_resp = MagicMock()
         mock_resp.json.return_value = {
             'status': True,
-            'nzo_ids': []  # Empty list
+            'nzo_ids': []
         }
         mock_resp.raise_for_status = MagicMock()
-        self.mock_session.get.return_value = mock_resp
+        mock_session.get.return_value = mock_resp
 
-        with self.assertRaises(DownloadClientException):
-            client.retry_download('SABnzbd_nzo_old123')
+        with pytest.raises(DownloadClientException):
+            sabnzbd_client.retry_download('SABnzbd_nzo_old123')
 
 
 @requires_full_env
-class TestSabnzbdDeleteDownload(unittest.TestCase):
+class TestSabnzbdDeleteDownload:
     """Test Sabnzbd delete_download method."""
 
-    def setUp(self):
-        """Set up test fixtures."""
-        self.mock_session = MagicMock()
+    @pytest.fixture
+    def mock_session(self):
+        """Create mock session."""
+        return MagicMock()
 
-    def _create_sabnzbd_client(self):
-        """Helper to create a Sabnzbd client for testing."""
+    @pytest.fixture
+    def sabnzbd_client(self, mock_session):
+        """Create a Sabnzbd client for testing."""
         from backend.implementations.usenet_clients.Sabnzbd import Sabnzbd
 
         client = Sabnzbd.__new__(Sabnzbd)
-        client.ssn = self.mock_session
+        client.ssn = mock_session
         client._api_token = 'test_key'
         client._base_url = 'http://localhost:8080'
         return client
 
-    def test_delete_download_success(self):
+    def test_delete_download_success(self, sabnzbd_client, mock_session):
         """Test successful download deletion."""
-        client = self._create_sabnzbd_client()
-
         mock_resp = MagicMock()
         mock_resp.json.return_value = {'status': True}
-        self.mock_session.get.return_value = mock_resp
+        mock_session.get.return_value = mock_resp
 
-        # Should not raise
-        client.delete_download('SABnzbd_nzo_abc123', delete_files=True)
+        sabnzbd_client.delete_download('SABnzbd_nzo_abc123', delete_files=True)
 
-        # Should have called delete on both queue and history
-        self.assertEqual(self.mock_session.get.call_count, 2)
+        assert mock_session.get.call_count == 2
 
-    def test_delete_download_with_files(self):
+    def test_delete_download_with_files(self, sabnzbd_client, mock_session):
         """Test deletion with file deletion flag."""
-        client = self._create_sabnzbd_client()
-
         mock_resp = MagicMock()
-        self.mock_session.get.return_value = mock_resp
+        mock_session.get.return_value = mock_resp
 
-        client.delete_download('SABnzbd_nzo_abc123', delete_files=True)
+        sabnzbd_client.delete_download('SABnzbd_nzo_abc123', delete_files=True)
 
-        # Verify del_files parameter was passed
-        calls = self.mock_session.get.call_args_list
+        calls = mock_session.get.call_args_list
         for call in calls:
             params = call[1].get('params', call[0][1] if len(call[0]) > 1 else {})
-            self.assertIn('del_files', params)
+            assert 'del_files' in params
 
 
-class TestNzbValidationEdgeCases(unittest.TestCase):
+# =============================================================================
+# NZB Validation Edge Cases
+# =============================================================================
+
+class TestNzbValidationEdgeCases:
     """Test edge cases in NZB validation."""
 
     def test_nzb_with_xml_comments(self):
@@ -1013,12 +950,10 @@ class TestNzbValidationEdgeCases(unittest.TestCase):
     <segments><segment bytes="100" number="1">x</segment></segments>
   </file>
 </nzb>'''
-        # Should not raise
         validate_nzb(nzb_content)
 
     def test_nzb_with_cdata(self):
         """Test NZB with CDATA sections in text content."""
-        # CDATA must be in element text content, not attribute values
         nzb_content = b'''<?xml version="1.0"?>
 <nzb xmlns="http://www.newzbin.com/DTD/2003/nzb">
   <file poster="test" date="123" subject="test">
@@ -1082,9 +1017,7 @@ class TestNzbValidationEdgeCases(unittest.TestCase):
         validate_nzb(nzb_content)
 
     def test_nzb_case_sensitivity(self):
-        """Test that root element check is case-insensitive for tag name."""
-        # Note: XML is case-sensitive, so <NZB> is different from <nzb>
-        # This should fail as it's not 'nzb'
+        """Test that root element check is case-sensitive for tag name."""
         nzb_content = b'''<?xml version="1.0"?>
 <NZB>
   <file poster="test" date="123" subject="test">
@@ -1092,31 +1025,33 @@ class TestNzbValidationEdgeCases(unittest.TestCase):
     <segments><segment bytes="100" number="1">x</segment></segments>
   </file>
 </NZB>'''
-        with self.assertRaises(InvalidNzbException):
+        with pytest.raises(InvalidNzbException):
             validate_nzb(nzb_content)
 
-    def test_indexer_error_variations(self):
+    @pytest.mark.parametrize("error_xml", [
+        b'<error code="100" description="Incorrect user credentials"/>',
+        b'<error code="200" description="Missing parameter"/>',
+        b'<error code="500" description="Request limit reached"/>',
+        b'<?xml version="1.0"?><error code="401" description="Unauthorized"/>',
+    ])
+    def test_indexer_error_variations(self, error_xml):
         """Test various indexer error response formats."""
-        error_formats = [
-            b'<error code="100" description="Incorrect user credentials"/>',
-            b'<error code="200" description="Missing parameter"/>',
-            b'<error code="500" description="Request limit reached"/>',
-            b'<?xml version="1.0"?><error code="401" description="Unauthorized"/>',
-        ]
-        for error_xml in error_formats:
-            with self.assertRaises(InvalidNzbException) as ctx:
-                validate_nzb(error_xml)
-            self.assertIn("indexer error", ctx.exception.message.lower())
+        with pytest.raises(InvalidNzbException) as exc_info:
+            validate_nzb(error_xml)
+        assert "indexer error" in exc_info.value.message.lower()
 
 
-class TestUsenetDownloadIntegration(unittest.TestCase):
+# =============================================================================
+# Integration Tests
+# =============================================================================
+
+class TestUsenetDownloadIntegration:
     """Test UsenetDownload class integration."""
 
     def test_update_status_marks_encrypted_as_failed(self):
         """Test that encrypted downloads are marked as failed."""
         from backend.base.definitions import DownloadState
 
-        # Simulate what update_status does when it detects encryption
         usenet_status = {
             'progress': 50.0,
             'speed': 1000,
@@ -1125,12 +1060,11 @@ class TestUsenetDownloadIntegration(unittest.TestCase):
             'is_encrypted': True
         }
 
-        # Simulate the logic from UsenetDownload.update_status()
         state = DownloadState.QUEUED_STATE
         if usenet_status.get('is_encrypted', False):
             state = DownloadState.FAILED_STATE
 
-        self.assertEqual(state, DownloadState.FAILED_STATE)
+        assert state == DownloadState.FAILED_STATE
 
     def test_update_status_normal_download(self):
         """Test normal download status update."""
@@ -1144,12 +1078,11 @@ class TestUsenetDownloadIntegration(unittest.TestCase):
             'is_encrypted': False
         }
 
-        # Normal download should keep its state
         state = usenet_status['state']
         if usenet_status.get('is_encrypted', False):
             state = DownloadState.FAILED_STATE
 
-        self.assertEqual(state, DownloadState.DOWNLOADING_STATE)
+        assert state == DownloadState.DOWNLOADING_STATE
 
     def test_storage_path_extraction(self):
         """Test storage path extraction on completion."""
@@ -1164,7 +1097,6 @@ class TestUsenetDownloadIntegration(unittest.TestCase):
             'storage_path': '/downloads/complete/Batman.2020.Issue.5'
         }
 
-        # Simulate storage path extraction logic
         files = []
         if (
             usenet_status.get('state') == DownloadState.IMPORTING_STATE
@@ -1172,17 +1104,15 @@ class TestUsenetDownloadIntegration(unittest.TestCase):
         ):
             files = [usenet_status['storage_path']]
 
-        self.assertEqual(len(files), 1)
-        self.assertIn('Batman', files[0])
+        assert len(files) == 1
+        assert 'Batman' in files[0]
 
 
-class TestNzbValidationWithMockedRequests(unittest.TestCase):
+class TestNzbValidationWithMockedRequests:
     """Test NZB validation in the context of HTTP responses."""
 
     def test_validate_gzip_nzb_content(self):
         """Test that gzip-compressed content is handled correctly."""
-        import gzip
-
         nzb_content = b'''<?xml version="1.0"?>
 <nzb xmlns="http://www.newzbin.com/DTD/2003/nzb">
   <file poster="test" date="123" subject="test">
@@ -1192,55 +1122,40 @@ class TestNzbValidationWithMockedRequests(unittest.TestCase):
 </nzb>'''
         compressed = gzip.compress(nzb_content)
 
-        # Decompressed content should validate
         decompressed = gzip.decompress(compressed)
         validate_nzb(decompressed)
 
     def test_validate_handles_bom(self):
         """Test handling of UTF-8 BOM (byte order mark)."""
-        # UTF-8 BOM + valid NZB
         nzb_with_bom = b'\xef\xbb\xbf<?xml version="1.0"?>\n<nzb><file poster="t" date="1" subject="t"><groups><group>t</group></groups><segments><segment bytes="1" number="1">x</segment></segments></file></nzb>'
-
-        # Should handle BOM gracefully (XML parser usually handles this)
         validate_nzb(nzb_with_bom)
 
 
-class TestErrorRecovery(unittest.TestCase):
+class TestErrorRecovery:
     """Test error recovery scenarios."""
 
     def test_exception_messages_are_informative(self):
         """Test that exception messages contain useful information."""
-        # Test InvalidNzbException message format
-        with self.assertRaises(InvalidNzbException) as ctx:
+        with pytest.raises(InvalidNzbException) as exc_info:
             validate_nzb(b'not xml', 'test_file.nzb')
 
-        message = ctx.exception.message
-        self.assertIn('test_file.nzb', message)
-        self.assertIn('Unable to parse XML', message)
+        message = exc_info.value.message
+        assert 'test_file.nzb' in message
+        assert 'Unable to parse XML' in message
 
     def test_exception_api_response_format(self):
         """Test that exceptions produce valid API responses."""
         exc = InvalidNzbException("Test error message")
         response = exc.api_response
 
-        self.assertIn('code', response)
-        self.assertIn('error', response)
-        self.assertIn('result', response)
-        self.assertIsInstance(response['code'], int)
-        self.assertIsInstance(response['error'], str)
-        self.assertIsInstance(response['result'], dict)
+        assert 'code' in response
+        assert 'error' in response
+        assert 'result' in response
+        assert isinstance(response['code'], int)
+        assert isinstance(response['error'], str)
+        assert isinstance(response['result'], dict)
 
     def test_network_error_exception_hierarchy(self):
         """Test that network errors use correct exception type."""
-        from backend.base.custom_exceptions import (
-            ClientNotWorking,
-            DownloadClientUnavailableException
-        )
-
-        # DownloadClientUnavailableException should be usable for network errors
         exc = DownloadClientUnavailableException("Connection refused")
-        self.assertEqual(exc.api_response['code'], 503)  # Service Unavailable
-
-
-if __name__ == '__main__':
-    unittest.main()
+        assert exc.api_response['code'] == 503  # Service Unavailable

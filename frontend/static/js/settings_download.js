@@ -7,15 +7,6 @@ function fillSettings(api_key) {
 		document.querySelector('#seeding-handling-input').value = json.result.seeding_handling;
 		document.querySelector('#delete-downloads-input').checked = json.result.delete_completed_downloads;
 		fillPref(json.result.service_preference);
-
-		// Usenet settings
-		document.querySelector('#usenet-enabled-input').checked = json.result.usenet_enabled || false;
-		document.querySelector('#nzbhydra-base-url-input').value = json.result.nzbhydra_base_url || '';
-		document.querySelector('#nzbhydra-api-key-input').value = json.result.nzbhydra_api_key || '';
-		document.querySelector('#nzbhydra-categories-input').value = json.result.nzbhydra_categories || '';
-		document.querySelector('#sabnzbd-category-input').value = json.result.sabnzbd_category || '';
-		document.querySelector('#sabnzbd-priority-input').value = json.result.sabnzbd_priority || 'Normal';
-		toggleUsenetSettings();
 	});
 };
 
@@ -28,15 +19,7 @@ function saveSettings(api_key) {
 		'failing_download_timeout': parseInt(document.querySelector('#download-timeout-input').value || 0) * 60,
 		'seeding_handling': document.querySelector('#seeding-handling-input').value,
 		'delete_completed_downloads': document.querySelector('#delete-downloads-input').checked,
-		'service_preference': [...document.querySelectorAll('#pref-table select')].map(e => e.value),
-
-		// Usenet settings
-		'usenet_enabled': document.querySelector('#usenet-enabled-input').checked,
-		'nzbhydra_base_url': document.querySelector('#nzbhydra-base-url-input').value,
-		'nzbhydra_api_key': document.querySelector('#nzbhydra-api-key-input').value,
-		'nzbhydra_categories': document.querySelector('#nzbhydra-categories-input').value,
-		'sabnzbd_category': document.querySelector('#sabnzbd-category-input').value,
-		'sabnzbd_priority': document.querySelector('#sabnzbd-priority-input').value
+		'service_preference': [...document.querySelectorAll('#pref-table select')].map(e => e.value)
 	};
 	sendAPI('PUT', '/settings', api_key, {}, data)
 	.then(response => 
@@ -106,15 +89,6 @@ function updatePrefOrder(e) {
 	};
 };
 
-//
-// Usenet settings toggle
-//
-function toggleUsenetSettings() {
-	const enabled = document.querySelector('#usenet-enabled-input').checked;
-	const settingsDiv = document.querySelector('#usenet-settings');
-	settingsDiv.style.display = enabled ? 'block' : 'none';
-};
-
 // code run on load
 usingApiKey()
 .then(api_key => {
@@ -122,5 +96,4 @@ usingApiKey()
 
 	document.querySelector('#save-button').onclick = e => saveSettings(api_key);
 	document.querySelector('#empty-download-folder').onclick = e => emptyFolder(api_key);
-	document.querySelector('#usenet-enabled-input').onchange = toggleUsenetSettings;
 });
