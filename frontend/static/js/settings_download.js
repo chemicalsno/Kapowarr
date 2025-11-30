@@ -1,3 +1,9 @@
+// All available download sources
+const ALL_SOURCES = [
+	'Mega', 'MediaFire', 'WeTransfer', 'Pixeldrain', 
+	'GetComics', 'GetComics (torrent)', 'NZBHydra2'
+];
+
 function fillSettings(api_key) {
 	fetchAPI('/settings', api_key)
 	.then(json => {
@@ -6,7 +12,7 @@ function fillSettings(api_key) {
 		document.querySelector('#download-timeout-input').value = ((json.result.failing_download_timeout || 0) / 60) || '';
 		document.querySelector('#seeding-handling-input').value = json.result.seeding_handling;
 		document.querySelector('#delete-downloads-input').checked = json.result.delete_completed_downloads;
-		fillPref(json.result.service_preference);
+		initPrefList(json.result.service_preference);
 	});
 };
 
@@ -19,7 +25,7 @@ function saveSettings(api_key) {
 		'failing_download_timeout': parseInt(document.querySelector('#download-timeout-input').value || 0) * 60,
 		'seeding_handling': document.querySelector('#seeding-handling-input').value,
 		'delete_completed_downloads': document.querySelector('#delete-downloads-input').checked,
-		'service_preference': [...document.querySelectorAll('#pref-table select')].map(e => e.value)
+		'service_preference': getServicePreference()
 	};
 	sendAPI('PUT', '/settings', api_key, {}, data)
 	.then(response => 
@@ -53,40 +59,106 @@ function emptyFolder(api_key) {
 };
 
 //
-// Service preference
+// Service preference - Sortable list
 //
-function fillPref(pref) {
-	const selects = document.querySelectorAll('#pref-table select');
-	for (let i = 0; i < pref.length; i++) {
-		const service = pref[i];
-		const select = selects[i];
-		select.onchange = updatePrefOrder;
-		pref.forEach(option => {
-			const entry = document.createElement('option');
-			entry.value = option;
-			entry.innerText = option.charAt(0).toUpperCase() + option.slice(1);
-			if (option === service)
-				entry.selected = true;
-			select.appendChild(entry);
-		});
-	};
+const prefList = document.querySelector('#pref-list');
+const prefAddSelect = document.querySelector('#pref-add-select');
+const prefAddBtn = document.querySelector('#pref-add-btn');
+
+function initPrefList(prefs) {
+	prefList.innerHTML = '';
+	prefs.forEach(source => addPrefItem(source));
+	updateAddSelect();
+	setupDragAndDrop();
 };
 
-function updatePrefOrder(e) {
-	const other_selects = document.querySelectorAll(
-		`#pref-table select:not([data-place="${e.target.dataset.place}"])`
-	);
-	// Find select that has the value of the target select
-	for (let i = 0; i < other_selects.length; i++) {
-		if (other_selects[i].value === e.target.value) {
-			// Set it to old value of target select
-			all_values = [...document.querySelector('#pref-table select').options].map(e => e.value)
-			used_values = new Set([...document.querySelectorAll('#pref-table select')].map(s => s.value));
-			open_value = all_values.filter(e => !used_values.has(e))[0];
-			other_selects[i].value = open_value;
-			break;
-		};
+function addPrefItem(source) {
+	const li = document.createElement('li');
+	li.dataset.source = source;
+	li.draggable = true;
+	li.innerHTML = `
+		<span class="drag-handle">☰</span>
+		<span class="pref-name">${source}</span>
+		<button type="button" class="pref-remove" title="Remove">−</button>
+	`;
+	
+	// Remove button handler
+	li.querySelector('.pref-remove').onclick = () => {
+		li.remove();
+		updateAddSelect();
 	};
+	
+	prefList.appendChild(li);
+};
+
+function getServicePreference() {
+	return [...prefList.querySelectorAll('li')].map(li => li.dataset.source);
+};
+
+function updateAddSelect() {
+	const currentSources = new Set(getServicePreference());
+	const availableSources = ALL_SOURCES.filter(s => !currentSources.has(s));
+	
+	// Clear and rebuild select options
+	prefAddSelect.innerHTML = '<option value="" disabled selected>Add source...</option>';
+	availableSources.forEach(source => {
+		const option = document.createElement('option');
+		option.value = source;
+		option.textContent = source;
+		prefAddSelect.appendChild(option);
+	});
+	
+	// Disable add button if no sources available
+	const hasAvailable = availableSources.length > 0;
+	prefAddBtn.disabled = !hasAvailable;
+	prefAddSelect.disabled = !hasAvailable;
+};
+
+function setupDragAndDrop() {
+	let draggedItem = null;
+	
+	prefList.addEventListener('dragstart', e => {
+		if (e.target.tagName === 'LI') {
+			draggedItem = e.target;
+			e.target.classList.add('dragging');
+			e.dataTransfer.effectAllowed = 'move';
+		}
+	});
+	
+	prefList.addEventListener('dragend', e => {
+		if (e.target.tagName === 'LI') {
+			e.target.classList.remove('dragging');
+			draggedItem = null;
+		}
+	});
+	
+	prefList.addEventListener('dragover', e => {
+		e.preventDefault();
+		e.dataTransfer.dropEffect = 'move';
+		
+		const afterElement = getDragAfterElement(prefList, e.clientY);
+		if (draggedItem) {
+			if (afterElement == null) {
+				prefList.appendChild(draggedItem);
+			} else {
+				prefList.insertBefore(draggedItem, afterElement);
+			}
+		}
+	});
+};
+
+function getDragAfterElement(container, y) {
+	const draggableElements = [...container.querySelectorAll('li:not(.dragging)')];
+	
+	return draggableElements.reduce((closest, child) => {
+		const box = child.getBoundingClientRect();
+		const offset = y - box.top - box.height / 2;
+		if (offset < 0 && offset > closest.offset) {
+			return { offset: offset, element: child };
+		} else {
+			return closest;
+		}
+	}, { offset: Number.NEGATIVE_INFINITY }).element;
 };
 
 // code run on load
@@ -96,4 +168,23 @@ usingApiKey()
 
 	document.querySelector('#save-button').onclick = e => saveSettings(api_key);
 	document.querySelector('#empty-download-folder').onclick = e => emptyFolder(api_key);
+	
+	// Add source button handler
+	prefAddBtn.onclick = () => {
+		const source = prefAddSelect.value;
+		if (source) {
+			addPrefItem(source);
+			updateAddSelect();
+			prefAddSelect.value = '';
+		}
+	};
+	
+	// Also add on select change for convenience
+	prefAddSelect.onchange = () => {
+		const source = prefAddSelect.value;
+		if (source) {
+			addPrefItem(source);
+			updateAddSelect();
+		}
+	};
 });
