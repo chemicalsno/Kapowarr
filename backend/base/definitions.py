@@ -835,6 +835,9 @@ class MassEditorAction(ABC):
 
 
 class SearchSource(ABC):
+    source_name: str
+    "The service_preference value this search source corresponds to"
+
     def __init__(self, query: str) -> None:
         """Prepare the search source.
 

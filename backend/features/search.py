@@ -155,8 +155,26 @@ def _rank_search_result(
 
 
 class SearchGetComics(SearchSource):
+    source_name = 'GetComics'
+
     async def search(self, session: AsyncSession) -> List[SearchResultData]:
         return await search_getcomics(session, self.query)
+
+
+def _get_enabled_search_sources() -> list:
+    """Get search source classes that are enabled in service_preference."""
+    service_preference = Settings().sv.service_preference
+    enabled_sources = []
+    for Source in get_subclasses(SearchSource):
+        # GetComics is enabled if any GC download source is in preference
+        if Source.source_name == 'GetComics':
+            gc_sources = {'Mega', 'MediaFire', 'WeTransfer', 'Pixeldrain',
+                          'GetComics', 'GetComics (torrent)'}
+            if any(s in service_preference for s in gc_sources):
+                enabled_sources.append(Source)
+        elif Source.source_name in service_preference:
+            enabled_sources.append(Source)
+    return enabled_sources
 
 
 async def search_multiple_queries(*queries: str) -> List[SearchResultData]:
@@ -166,10 +184,11 @@ async def search_multiple_queries(*queries: str) -> List[SearchResultData]:
         List[SearchResultData]: The search results for all queries together,
         duplicates removed.
     """
+    enabled_sources = _get_enabled_search_sources()
     async with AsyncSession() as session:
         searches = [
             Source(query).search(session)
-            for Source in get_subclasses(SearchSource)
+            for Source in enabled_sources
             for query in queries
         ]
         responses = await gather(*searches)

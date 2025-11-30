@@ -20,6 +20,8 @@ from backend.internals.settings import Settings
 class HydraSearchSource(SearchSource):
     """Search source for NZBHydra2 indexer."""
 
+    source_name = 'NZBHydra2'
+
     async def search(self, session: AsyncSession) -> List[SearchResultData]:
         """Search NZBHydra2 for the query.
 
