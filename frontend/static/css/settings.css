@@ -303,6 +303,35 @@
 	width: 60%;
 }
 
+.password-input-wrapper {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+.password-input-wrapper input {
+	flex: 1;
+}
+
+.password-toggle {
+	background: transparent;
+	border: none;
+	cursor: pointer;
+	padding: 0.25rem;
+	color: var(--light-color);
+	opacity: 0.6;
+	transition: opacity 0.2s;
+}
+
+.password-toggle:hover {
+	opacity: 1;
+}
+
+.password-toggle.showing {
+	opacity: 1;
+	color: var(--accent-color);
+}
+
 .test-button {
 	position: relative;
 	width: 5rem;

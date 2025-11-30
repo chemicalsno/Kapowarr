@@ -107,7 +107,6 @@
     cursor: pointer;
     font-size: 14px;
     transition: background var(--transition-fast, 0.2s);
-    margin-top: 10px;
 }
 
 .test-button:hover:not(:disabled) {
