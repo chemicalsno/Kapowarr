@@ -3,7 +3,8 @@
 from asyncio import gather, run
 from typing import Dict, List, Tuple, Union
 
-from backend.base.definitions import (QUERY_FORMATS, MatchedSearchResultData,
+from backend.base.definitions import (Constants, GCDownloadSource,
+                                      QUERY_FORMATS, MatchedSearchResultData,
                                       SearchResultData, SearchSource,
                                       SpecialVersion)
 from backend.base.helpers import (AsyncSession, check_overlapping_issues,
@@ -13,6 +14,14 @@ from backend.base.logging import LOGGER
 from backend.implementations.getcomics import search_getcomics
 from backend.implementations.matching import check_search_result_match
 from backend.implementations.volumes import Volume
+from backend.internals.settings import Settings
+
+# Map source names to GCDownloadSource values for ranking
+SOURCE_TO_DOWNLOAD_SOURCE = {
+    Constants.GC_SOURCE_TERM: GCDownloadSource.GETCOMICS.value,
+    'NZBHydra2': GCDownloadSource.NZBHYDRA2.value,
+    'Usenet': GCDownloadSource.NZBHYDRA2.value,
+}
 
 
 def _rank_search_result(
@@ -44,6 +53,17 @@ def _rank_search_result(
         List[int]: A list of numbers which determines the ranking of the result.
     """
     rating = []
+
+    # Source preference ranking based on service_preference setting
+    service_preference = Settings().sv.service_preference
+    source = result.get('source', '')
+    download_source = SOURCE_TO_DOWNLOAD_SOURCE.get(source, source)
+    try:
+        source_rank = service_preference.index(download_source)
+    except ValueError:
+        # Source not in preference list - put at end
+        source_rank = len(service_preference)
+    rating.append(source_rank)
 
     # Prefer matches (False == 0 == higher rank)
     rating.append(not result['match'])

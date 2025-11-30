@@ -1171,3 +1171,16 @@ def _migrate_remove_unsupported_source_blocklist_entries():
         (2,) # Source not supported
     )
     return
+
+
+@DatabaseMigrationHandler.register_handler(44)
+def _migrate_add_nzbhydra2_to_preference():
+    from backend.internals.settings import Settings
+
+    service_preference = Settings().sv.service_preference
+    service_preference.append("NZBHydra2")
+    get_db().execute(
+        "UPDATE config SET value = ? WHERE key = 'service_preference';",
+        (service_preference,)
+    )
+    return

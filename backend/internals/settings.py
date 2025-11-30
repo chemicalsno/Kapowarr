@@ -89,8 +89,6 @@ class PublicSettingsValues:
     seeding_handling: SeedingHandling = SeedingHandling.COPY
     delete_completed_downloads: bool = True
 
-    usenet_enabled: bool = False
-
     nzbhydra_base_url: str = ''
     nzbhydra_api_key: str = ''
     nzbhydra_categories: str = ''

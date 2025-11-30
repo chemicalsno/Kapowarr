@@ -435,7 +435,7 @@ class DownloadType(BaseEnum):
 
 
 class GCDownloadSource(BaseEnum):
-    "Download sources offered on a GetComics webpage"
+    "Download sources for comics"
 
     MEGA = "Mega"
     MEDIAFIRE = "MediaFire"
@@ -445,6 +445,8 @@ class GCDownloadSource(BaseEnum):
     "A direct download link straight from their own servers"
     GETCOMICS_TORRENT = "GetComics (torrent)"
     "A torrent magnet link directly on the webpage"
+    NZBHYDRA2 = "NZBHydra2"
+    "Usenet downloads via NZBHydra2 indexer"
 
 
 # autopep8: off

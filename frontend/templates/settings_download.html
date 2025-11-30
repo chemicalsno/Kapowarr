@@ -73,53 +73,16 @@
 				</tbody>
 			</table>
 			<h2>Service preference</h2>
-			<p>The preference for service to download from when using GetComics as the source.</p>
-			<table id="pref-table" class="short-table">
-				<tbody>
-					<tr>
-						<th>1</th>
-						<td>
-							<select data-place="1">
-							</select>
-						</td>
-					</tr>
-					<tr>
-						<th>2</th>
-						<td>
-							<select data-place="2">
-							</select>
-						</td>
-					</tr>
-					<tr>
-						<th>3</th>
-						<td>
-							<select data-place="3">
-							</select>
-						</td>
-					</tr>
-					<tr>
-						<th>4</th>
-						<td>
-							<select data-place="4">
-							</select>
-						</td>
-					</tr>
-					<tr>
-						<th>5</th>
-						<td>
-							<select data-place="5">
-							</select>
-						</td>
-					</tr>
-					<tr>
-						<th>6</th>
-						<td>
-							<select data-place="6">
-							</select>
-						</td>
-					</tr>
-				</tbody>
-			</table>
+			<p>Drag to reorder. Higher items are preferred when downloading.</p>
+			<ul id="pref-list" class="sortable-list">
+				<!-- Items populated by JavaScript -->
+			</ul>
+			<div id="pref-add-container">
+				<select id="pref-add-select">
+					<option value="" disabled selected>Add source...</option>
+				</select>
+				<button type="button" id="pref-add-btn" class="icon-btn" title="Add source">+</button>
+			</div>
 		</form>
 	</div>
 </main>
