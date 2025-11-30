@@ -8,8 +8,7 @@ from typing import List
 from xml.etree import ElementTree
 
 from backend.base.definitions import DownloadType, SearchResultData, SearchSource
-from backend.base.file_extraction import extract_issue_number, extract_volume_number
-from backend.base.helpers import AsyncSession, extract_year_from_date
+from backend.base.helpers import AsyncSession
 from backend.base.logging import LOGGER
 from backend.implementations.external_clients import ExternalClients
 from backend.internals.settings import Settings
@@ -140,38 +139,32 @@ class HydraSearchSource(SearchSource):
                 indexer_name = attr.get('value', 'Usenet')
                 break
 
-        # Parse filename from title to extract metadata
-        # This uses Kapowarr's existing filename extraction logic
-        from backend.base.file_extraction import (
-            extract_filename_data,
-            FilenameData
-        )
+        # Extract year from title if present (e.g., "(2024)" or "2024")
+        import re
+        year_match = re.search(r'\((\d{4})\)|\.(\d{4})\.', title)
+        year = None
+        if year_match:
+            year = int(year_match.group(1) or year_match.group(2))
 
-        # Try to extract metadata from title
-        try:
-            filename_data = extract_filename_data(title)
-        except Exception:
-            # If parsing fails, create minimal data
-            filename_data: FilenameData = {
-                'series': title,
-                'year': None,
-                'volume_number': None,
-                'special_version': None,
-                'issue_number': None,
-                'annual': False
-            }
+        # For Usenet results, use title as series name
+        # Clean up common separators for better matching
+        series = re.sub(r'[\.\-_]+', ' ', title)
+        series = re.sub(r'\s*\(\d{4}\)\s*', ' ', series)  # Remove year
+        series = re.sub(r'\s*(digital|hybrid|comic|ebook|sd|hd).*$', '', series, flags=re.IGNORECASE)
+        series = series.strip()
 
         # Build SearchResultData
+        # For Usenet, we don't try to extract issue numbers - these are typically full volumes
         result: SearchResultData = {
             'link': nzb_url,
             'display_title': title,
             'source': indexer_name,
-            'series': filename_data['series'],
-            'year': filename_data['year'],
-            'volume_number': filename_data['volume_number'],
-            'special_version': filename_data['special_version'],
-            'issue_number': filename_data['issue_number'],
-            'annual': filename_data['annual']
+            'series': series,
+            'year': year,
+            'volume_number': 1,  # Default to volume 1 for TPBs
+            'special_version': None,
+            'issue_number': None,  # Don't guess issue numbers from release titles
+            'annual': False
         }
 
         return result

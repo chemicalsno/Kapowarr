@@ -19,6 +19,7 @@ from backend.base.custom_exceptions import (ClientNotWorking,
                                             LinkBroken)
 from backend.base.definitions import (BlocklistReason, Constants, Download,
                                       DownloadSource, DownloadState,
+                                      DownloadType,
                                       EnqueuingDownloadFailureReason,
                                       ExternalDownload, SeedingHandling)
 from backend.base.files import create_folder, delete_file_folder
@@ -416,7 +417,10 @@ class DownloadHandler(metaclass=Singleton):
         """
         if link.startswith(Constants.GC_SITE_URL):
             return 'gc'
-        elif link.endswith('.nzb') or 'nzbhydra' in link.lower() or '/api?t=' in link:
+        elif (link.endswith('.nzb') 
+              or 'nzbhydra' in link.lower() 
+              or '/api?t=' in link
+              or '/getnzb/' in link):  # NZBHydra2 download URLs
             return 'nzb'
         return None
 
@@ -561,10 +565,13 @@ class DownloadHandler(metaclass=Singleton):
                             )
                             return [], EnqueuingDownloadFailureReason.LINK_BROKEN
 
-                # Get available Sabnzbd clients
-                usenet_clients = ExternalClients.get_all_by_type('Sabnzbd')
+                # Get available Usenet clients
+                usenet_clients = [
+                    c for c in ExternalClients.get_clients()
+                    if c['download_type'] == DownloadType.USENET.value
+                ]
                 if not usenet_clients:
-                    LOGGER.error('No Sabnzbd clients configured')
+                    LOGGER.error('No Usenet (Sabnzbd) clients configured')
                     return [], EnqueuingDownloadFailureReason.NO_WORKING_LINKS
 
                 # Create UsenetDownload object
