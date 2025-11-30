@@ -292,71 +292,6 @@
 
 	{{ window(False, "edit-usenet-window", "Edit Usenet Client", edit_usenet_content, edit_usenet_submit) }}
 
-	{% set nzbhydra_content %}
-		<p class="error hidden" id="nzbhydra-error"></p>
-		<form id="nzbhydra-form">
-			<h3>NZBHydra2 Connection</h3>
-			<table>
-				<tr>
-					<th><label for="nzbhydra-baseurl-input">Base URL</label></th>
-					<td>
-						<input type="text" id="nzbhydra-baseurl-input" placeholder="http://localhost:5076">
-						<p>The base URL of your NZBHydra2 instance</p>
-					</td>
-				</tr>
-				<tr>
-					<th><label for="nzbhydra-apikey-input">API Key</label></th>
-					<td>
-						<input type="password" id="nzbhydra-apikey-input">
-						<p>NZBHydra2 API key (found in Config → Main)</p>
-					</td>
-				</tr>
-				<tr>
-					<th><label for="nzbhydra-categories-input">Categories</label></th>
-					<td>
-						<input type="text" id="nzbhydra-categories-input" placeholder="7000,8000">
-						<p>Comma-separated category IDs to search (leave blank for all)</p>
-					</td>
-				</tr>
-			</table>
-			<h3>Sabnzbd Preferences</h3>
-			<table>
-				<tr>
-					<th><label for="sabnzbd-category-input">Category</label></th>
-					<td>
-						<input type="text" id="sabnzbd-category-input" placeholder="comics">
-						<p>Sabnzbd category for comic downloads (optional)</p>
-					</td>
-				</tr>
-				<tr>
-					<th><label for="sabnzbd-priority-input">Priority</label></th>
-					<td>
-						<select id="sabnzbd-priority-input">
-							<option value="Default">Default</option>
-							<option value="Paused">Paused</option>
-							<option value="Low">Low</option>
-							<option value="Normal">Normal</option>
-							<option value="High">High</option>
-							<option value="Force">Force</option>
-						</select>
-						<p>Default priority for Usenet downloads</p>
-					</td>
-				</tr>
-			</table>
-		</form>
-	{% endset %}
-
-	{% set nzbhydra_submit %}
-		<button id="test-nzbhydra" class="test-button" type="button">
-			<div>Failed</div>
-			<div>Test</div>
-			<div>Success</div>
-		</button>
-		<button id="submit-nzbhydra" type="submit" form="nzbhydra-form">Save</button>
-	{% endset %}
-
-	{{ window(False, "nzbhydra-window", "NZBHydra2 Indexer", nzbhydra_content, nzbhydra_submit) }}
-
 	{% set add_remote_mapping_content %}
 		<p class="error hidden" id="add-mapping-error"></p>
 		<form id="add-mapping-form">
@@ -449,10 +384,6 @@
 			<button id="add-usenet-client" class="add-button icon-text-color" title="Add usenet client">
 				<img src="{{url_base}}/static/img/cancel.svg" alt="">
 			</button>
-		</div>
-		<h2>Usenet Indexers</h2>
-		<div id="usenet-indexer-list" class="client-list">
-			<button id="nzbhydra-indexer" class="indexer-button">NZBHydra2</button>
 		</div>
 		<h2>Remote Path Mappings</h2>
 		<button id="add-remote-mapping" class="icon-dark-color" title="Add remote path mapping">

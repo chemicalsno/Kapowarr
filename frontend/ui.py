@@ -111,6 +111,11 @@ def ui_download():
     return render('settings_download.html')
 
 
+@ui.route('/settings/indexers', methods=methods)
+def ui_indexers():
+    return render('settings_indexers.html')
+
+
 @ui.route('/settings/downloadclients', methods=methods)
 def ui_download_clients():
     return render('settings_download_clients.html')

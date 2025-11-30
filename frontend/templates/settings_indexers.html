@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% from "base.html" import icon_button %}
+{% block title %}Indexers{% endblock %}
+{% block css %}
+	<link rel="stylesheet" href="{{ url_for('static', filename='css/settings.css') }}">
+{% endblock %}
+{% block js %}
+	<script src="{{ url_for('static', filename='js/settings_indexers.js') }}" defer></script>
+{% endblock %}
+
+{% block main %}
+<main>
+	<section class="tool-bar-container" aria-label="Tool bar">
+		<div class="tool-bar">
+			{{ icon_button("save-button", "Save the changes made", "save.svg", "Save", True) }}
+		</div>
+	</section>
+	<div class="settings-container">
+		<form id="indexers-form">
+			<h2>NZBHydra2</h2>
+			<p class="description">
+				<a href="https://github.com/theotherp/nzbhydra2" target="_blank">NZBHydra2</a> is a meta search tool for Usenet indexers.
+				It searches multiple indexers and provides results in a single interface.
+				Configure your NZBHydra2 instance below to enable Usenet search capabilities.
+			</p>
+			<table class="fold-table">
+				<tbody>
+					<tr>
+						<th><label for="nzbhydra-base-url-input">Base URL</label></th>
+						<td>
+							<input type="text" id="nzbhydra-base-url-input" spellcheck="false" placeholder="http://localhost:5076">
+							<p>The base URL of your NZBHydra2 instance</p>
+						</td>
+					</tr>
+					<tr>
+						<th><label for="nzbhydra-api-key-input">API Key</label></th>
+						<td>
+							<input type="password" id="nzbhydra-api-key-input" spellcheck="false">
+							<p>NZBHydra2 API key (found in Config → Main)</p>
+						</td>
+					</tr>
+					<tr>
+						<th><label for="nzbhydra-categories-input">Categories</label></th>
+						<td>
+							<input type="text" id="nzbhydra-categories-input" spellcheck="false" placeholder="7000,8000">
+							<p>Comma-separated category IDs to search (leave blank for all)</p>
+						</td>
+					</tr>
+					<tr>
+						<th></th>
+						<td>
+							<button type="button" id="test-nzbhydra-button" class="test-button">
+								<img src="{{ url_for('static', filename='img/refresh.svg') }}" id="test-hydra-icon" class="button-icon" alt="">
+								<span>Test Connection</span>
+							</button>
+							<div id="test-hydra-result" class="test-result" style="display: none;"></div>
+						</td>
+					</tr>
+				</tbody>
+			</table>
+
+			<h2>Usenet Download Defaults</h2>
+			<p class="description">
+				These settings apply to all Usenet downloads sent to Sabnzbd. You can configure individual Sabnzbd clients in
+				<a href="{{url_base}}/settings/downloadclients">Download Clients</a>.
+			</p>
+			<table class="fold-table">
+				<tbody>
+					<tr>
+						<th><label for="sabnzbd-category-input">Sabnzbd Category</label></th>
+						<td>
+							<input type="text" id="sabnzbd-category-input" spellcheck="false" placeholder="comics">
+							<p>Default Sabnzbd category for downloads (leave blank for Sabnzbd's default)</p>
+						</td>
+					</tr>
+					<tr>
+						<th><label for="sabnzbd-priority-input">Sabnzbd Priority</label></th>
+						<td>
+							<select id="sabnzbd-priority-input">
+								<option value="Default">Default</option>
+								<option value="Paused">Paused</option>
+								<option value="Low">Low</option>
+								<option value="Normal" selected>Normal</option>
+								<option value="High">High</option>
+								<option value="Force">Force</option>
+							</select>
+							<p>Default priority for Usenet downloads</p>
+						</td>
+					</tr>
+				</tbody>
+			</table>
+		</form>
+	</div>
+</main>
+{% endblock main %}
