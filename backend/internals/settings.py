@@ -394,6 +394,7 @@ class Settings(metaclass=Singleton):
         if key_data.type == CommaList and isinstance(value, list):
             # Convert list to CommaList
             value = CommaList(value)
+            converted_value = value
 
         elif isinstance(key_data.type, type) and issubclass(key_data.type, BaseEnum):
             # Convert string to Enum value
