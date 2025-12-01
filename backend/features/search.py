@@ -395,6 +395,9 @@ def auto_search(
             covered_issues = volume.get_issues_in_range(
                 *force_range(result['issue_number'])
             )
+            # Skip if the issue doesn't exist in the library
+            if not covered_issues:
+                continue
 
         elif (
             special_version == SpecialVersion.VOLUME_AS_ISSUE
@@ -415,6 +418,9 @@ def auto_search(
             covered_issues = volume.get_issues_in_range(
                 *force_range(result['volume_number'])
             )
+            # Skip if the issue doesn't exist in the library
+            if not covered_issues:
+                continue
 
         elif (
             special_version in (
