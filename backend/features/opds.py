@@ -61,10 +61,10 @@ def _check_opds_access() -> Union[Response, None]:
             )
         
         # Get expected credentials
-        expected_username = settings.opds_username  # Default empty string
-        # If opds_password is empty, use API key as password
-        expected_password = settings.opds_password if settings.opds_password else settings.api_key
-        
+        expected_username = settings.opds_username or ''  # Default empty string
+        # If opds_password is not set, use API key as password (like Mylar3 does)
+        expected_password = settings.opds_password or settings.api_key or ''
+
         if username != expected_username or password != expected_password:
             LOGGER.warning(f'OPDS authentication failed for user: {username}')
             return Response(
@@ -144,7 +144,7 @@ def root():
             'updated': _now(),
             'content': 'Recently added issues',
             'href': f'{root_url}/recent',
-            'kind': 'acquisition',
+            'kind': 'navigation',  # Links to a feed, not a file
         },
         {
             'title': f'All Volumes ({volume_count})',
@@ -282,14 +282,24 @@ def volume_issues(volume_id: int):
         WHERE i.volume_id = ?
         ORDER BY i.calculated_issue_number
     """, (volume_id,)).fetchall()
-    
+
     entries = []
     for file_row in files:
         file_id, filepath, issue_num, calc_num, issue_date = file_row
         filename = basename(filepath)
-        
+
+        # Determine mimetype from extension
+        ext = splitext(filename)[1].lower()
+        mimetypes_map = {
+            '.cbz': 'application/x-cbz',
+            '.cbr': 'application/x-cbr',
+            '.pdf': 'application/pdf',
+            '.epub': 'application/epub+zip',
+        }
+        mimetype = mimetypes_map.get(ext, 'application/octet-stream')
+
         issue_title = f"#{issue_num}" if issue_num else f"Issue {calc_num}"
-        
+
         entry = {
             'title': f"{vol_title} {issue_title}",
             'id': f'file:{file_id}',
@@ -298,6 +308,7 @@ def volume_issues(volume_id: int):
             'href': f'{root_url}/download/{file_id}',
             'kind': 'acquisition',
             'cover': vol_cover,
+            'mimetype': mimetype,
         }
         entries.append(entry)
     
@@ -358,15 +369,25 @@ def recent():
         ORDER BY f.id DESC
         LIMIT 100
     """).fetchall()
-    
+
     entries = []
     for file_row in files:
         file_id, filepath, vol_title, vol_year, vol_cover, issue_num, calc_num = file_row
         filename = basename(filepath)
-        
+
+        # Determine mimetype from extension
+        ext = splitext(filename)[1].lower()
+        mimetypes_map = {
+            '.cbz': 'application/x-cbz',
+            '.cbr': 'application/x-cbr',
+            '.pdf': 'application/pdf',
+            '.epub': 'application/epub+zip',
+        }
+        mimetype = mimetypes_map.get(ext, 'application/octet-stream')
+
         display_title = f"{vol_title} ({vol_year})" if vol_year else vol_title
         issue_title = f"#{issue_num}" if issue_num else f"Issue {calc_num}"
-        
+
         entry = {
             'title': f"{display_title} {issue_title}",
             'id': f'file:{file_id}',
@@ -375,6 +396,7 @@ def recent():
             'href': f'{root_url}/download/{file_id}',
             'kind': 'acquisition',
             'cover': vol_cover,
+            'mimetype': mimetype,
         }
         entries.append(entry)
     
