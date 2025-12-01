@@ -266,9 +266,15 @@ class Settings(metaclass=Singleton):
 
         old_settings = self.get_settings()
 
+        # Convert CommaList to string for database storage
+        db_data = {
+            k: (str(v) if isinstance(v, CommaList) else v)
+            for k, v in formatted_data.items()
+        }
+
         get_db().executemany(
             "UPDATE config SET value = ? WHERE key = ?;",
-            ((v, k) for k, v in formatted_data.items())
+            ((v, k) for k, v in db_data.items())
         )
 
         if (
