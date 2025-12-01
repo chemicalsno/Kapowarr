@@ -615,10 +615,16 @@ class DownloadHandler(metaclass=Singleton):
         self,
         add_args: Iterable[Tuple[str, int, Union[int, float, None], bool]]
     ) -> None:
+        # Convert to list to allow inspection and multiple iteration
+        args_list = list(add_args)
+        LOGGER.debug(f'add_multiple received {len(args_list)} entries')
+        for entry in args_list[:3]:  # Log first 3 for debugging
+            LOGGER.debug(f'  Entry: link={entry[0][:50]}..., volume_id={entry[1]}, issue_id={entry[2]}, force={entry[3]}')
+
         async def add_wrapper():
             await gather(
                 *(self.add(*entry)
-                for entry in add_args)
+                for entry in args_list)
             )
 
         run(add_wrapper())
