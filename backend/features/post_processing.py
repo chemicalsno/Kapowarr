@@ -6,7 +6,7 @@ The post-download processing (a.k.a. post-processing or PP) of downloads.
 
 from __future__ import annotations
 
-from os.path import basename, exists, isfile, join, splitext
+from os.path import basename, exists, isdir, isfile, join, splitext
 from time import time
 from typing import TYPE_CHECKING, List, Tuple
 
@@ -142,6 +142,31 @@ def move_to_dest(download: Download) -> None:
 
     rename_file(download.files[0], file_dest)
     download.files = [file_dest]
+    return
+
+
+def extract_from_folder(download: Download) -> None:
+    """Extract files from folder if download is a directory (e.g. SABnzbd downloads).
+    
+    SABnzbd and some other usenet clients deliver downloads as folders containing
+    the actual comic files. This function extracts those files so they can be
+    properly scanned and linked to issues.
+    """
+    if not download.files:
+        return
+    
+    file_path = download.files[0]
+    if not exists(file_path):
+        return
+    
+    # If it's a directory, extract the files from inside
+    if isdir(file_path):
+        LOGGER.debug(f'Download is a folder, extracting files from: {file_path}')
+        download.files = extract_files_from_folder(
+            file_path,
+            download.volume_id
+        )
+        LOGGER.debug(f'Extracted files: {download.files}')
     return
 
 
@@ -281,6 +306,7 @@ class PostProcessor:
         remove_from_queue,
         add_to_history,
         move_to_dest,
+        extract_from_folder,  # Extract files if download is a folder (SABnzbd)
         rename_with_proper_extension,
         add_file_to_database,
         convert_file
