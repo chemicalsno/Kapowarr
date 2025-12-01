@@ -1005,8 +1005,17 @@ class UsenetDownload(ExternalDownload, BaseDirectDownload):
                 self._issue_id = Issue.from_volume_and_calc_number(
                     volume_id, covered_issues
                 ).id
+            elif isinstance(covered_issues, tuple):
+                # For issue ranges, use the first issue number
+                self._issue_id = Issue.from_volume_and_calc_number(
+                    volume_id, covered_issues[0]
+                ).id
 
         except IssueNotFound as e:
+            LOGGER.warning(
+                f"Issue not found for volume {volume_id}, "
+                f"issue number {covered_issues}: {e.issue_id}"
+            )
             if not forced_match:
                 raise e
 
