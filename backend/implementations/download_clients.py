@@ -1001,7 +1001,10 @@ class UsenetDownload(ExternalDownload, BaseDirectDownload):
             )
 
         try:
-            if isinstance(covered_issues, float):
+            if isinstance(covered_issues, int):
+                # Direct issue database ID
+                self._issue_id = covered_issues
+            elif isinstance(covered_issues, float):
                 self._issue_id = Issue.from_volume_and_calc_number(
                     volume_id, covered_issues
                 ).id
