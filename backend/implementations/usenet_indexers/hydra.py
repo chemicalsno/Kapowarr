@@ -166,20 +166,23 @@ class HydraSearchSource(SearchSource):
 
         # Use extract_filename_data to properly parse the cleaned title
         # This handles issue numbers, volume numbers, years, etc.
+        # Use assume_volume_number=False so releases without explicit volume
+        # numbers return None, allowing conservative matching to pass
         parsed = extract_filename_data(
             clean_title,
-            assume_volume_number=True,
+            assume_volume_number=False,
             fix_year=True
         )
 
         # Build SearchResultData using properly extracted data
+        # Allow volume_number to be None for conservative matching
         result: SearchResultData = {
             'link': nzb_url,
             'display_title': title,
             'source': indexer_name,
             'series': parsed['series'] or title,
             'year': parsed['year'],
-            'volume_number': parsed['volume_number'] or 1,
+            'volume_number': parsed['volume_number'],
             'special_version': parsed['special_version'],
             'issue_number': parsed['issue_number'],
             'annual': parsed['annual'],
