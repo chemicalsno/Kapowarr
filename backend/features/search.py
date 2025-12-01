@@ -14,7 +14,7 @@ from backend.base.logging import LOGGER
 from backend.implementations.getcomics import search_getcomics
 from backend.implementations.matching import check_search_result_match
 from backend.implementations.usenet_indexers.hydra import HydraSearchSource
-from backend.implementations.volumes import Volume
+from backend.implementations.volumes import Issue, Volume
 from backend.internals.settings import Settings
 
 # Map source names to GCDownloadSource values for ranking
@@ -379,6 +379,13 @@ def auto_search(
     ):
         # We're searching for one "item", so just grab first search result.
         result = search_results[:1] if search_results else []
+        # Set _issue_number for downloads (needed by UsenetDownload)
+        for r in result:
+            if r.get('issue_number') is not None:
+                r['_issue_number'] = r['issue_number']
+            elif issue_id is not None:
+                # Use the issue's calculated_issue_number from the database
+                r['_issue_number'] = Issue(issue_id).get_data().calculated_issue_number
         LOGGER.debug('Auto search results: %s', result)
         return result
 

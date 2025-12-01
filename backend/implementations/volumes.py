@@ -114,6 +114,14 @@ class Issue:
             f"calculated_issue_number={calculated_issue_number}"
         )
 
+        # Handle None case
+        if calculated_issue_number is None:
+            LOGGER.warning(
+                f"Cannot look up issue with None calculated_issue_number "
+                f"for volume {volume_id}"
+            )
+            raise IssueNotFound(-1)
+
         # Try exact match first
         issue_id: Union[int, None] = get_db().execute("""
             SELECT id
