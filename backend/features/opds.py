@@ -7,6 +7,7 @@ Allows comic reader apps like Panels, Chunky, etc. to browse and download comics
 Based on Mylar3's OPDS implementation (GPL-3.0 compatible).
 """
 
+from base64 import b64decode
 from datetime import datetime
 from os.path import basename, exists, splitext
 from typing import Any, Dict, List, Union
@@ -25,15 +26,53 @@ opds = Blueprint('opds', __name__, url_prefix='/opds')
 PAGE_SIZE = 50
 
 
-def _check_opds_enabled() -> Union[Response, None]:
-    """Check if OPDS is enabled, return error response if not."""
-    if not Settings().get('opds_enabled'):
+def _check_opds_access() -> Union[Response, None]:
+    """Check if OPDS is enabled and user is authenticated."""
+    settings = Settings().sv
+    
+    # Check if OPDS is enabled
+    if not settings.opds_enabled:
         return Response(
             '<?xml version="1.0" encoding="UTF-8"?>'
-            '<error>OPDS is disabled. Enable it in Settings > General.</error>',
+            '<error>OPDS is disabled. Enable it in Settings &gt; General.</error>',
             status=403,
             mimetype='application/xml'
         )
+    
+    # Check authentication if enabled
+    if settings.opds_authentication:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Basic '):
+            return Response(
+                'Authentication required',
+                status=401,
+                headers={'WWW-Authenticate': 'Basic realm="Kapowarr OPDS"'}
+            )
+        
+        try:
+            encoded_credentials = auth_header[6:]  # Remove 'Basic '
+            decoded = b64decode(encoded_credentials).decode('utf-8')
+            username, password = decoded.split(':', 1)
+        except Exception:
+            return Response(
+                'Invalid credentials',
+                status=401,
+                headers={'WWW-Authenticate': 'Basic realm="Kapowarr OPDS"'}
+            )
+        
+        # Get expected credentials
+        expected_username = settings.opds_username  # Default empty string
+        # If opds_password is empty, use API key as password
+        expected_password = settings.opds_password if settings.opds_password else settings.api_key
+        
+        if username != expected_username or password != expected_password:
+            LOGGER.warning(f'OPDS authentication failed for user: {username}')
+            return Response(
+                'Invalid credentials',
+                status=401,
+                headers={'WWW-Authenticate': 'Basic realm="Kapowarr OPDS"'}
+            )
+    
     return None
 
 
@@ -71,7 +110,7 @@ def _get_opds_root() -> str:
 @opds.route('/')
 def root():
     """Root OPDS catalog - navigation feed."""
-    if (error := _check_opds_enabled()):
+    if (error := _check_opds_access()):
         return error
     root_url = _get_opds_root()
     
@@ -128,7 +167,7 @@ def root():
 @opds.route('/volumes')
 def all_volumes():
     """List all volumes with downloaded files."""
-    if (error := _check_opds_enabled()):
+    if (error := _check_opds_access()):
         return error
     root_url = _get_opds_root()
     index = int(request.args.get('index', 0))
@@ -202,7 +241,7 @@ def all_volumes():
 @opds.route('/volume/<int:volume_id>')
 def volume_issues(volume_id: int):
     """List issues in a volume - acquisition feed."""
-    if (error := _check_opds_enabled()):
+    if (error := _check_opds_access()):
         return error
     root_url = _get_opds_root()
     index = int(request.args.get('index', 0))
@@ -288,7 +327,7 @@ def volume_issues(volume_id: int):
 @opds.route('/recent')
 def recent():
     """Recently added issues - acquisition feed."""
-    if (error := _check_opds_enabled()):
+    if (error := _check_opds_access()):
         return error
     root_url = _get_opds_root()
     index = int(request.args.get('index', 0))
@@ -350,7 +389,7 @@ def recent():
 @opds.route('/download/<int:file_id>')
 def download_file(file_id: int):
     """Download a comic file."""
-    if (error := _check_opds_enabled()):
+    if (error := _check_opds_access()):
         return error
     cursor = get_db()
     result = cursor.execute(

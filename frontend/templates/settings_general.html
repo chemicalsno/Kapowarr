@@ -109,6 +109,27 @@
 						<p>Enable the OPDS server at <code>/opds</code> for comic reader apps like Panels, Chunky, etc.</p>
 					</td>
 				</tr>
+				<tr>
+					<th><label for="opds-auth-input">OPDS Authentication</label></th>
+					<td>
+						<input type="checkbox" id="opds-auth-input">
+						<p>Require authentication to access OPDS. Disable only if accessing locally.</p>
+					</td>
+				</tr>
+				<tr>
+					<th><label for="opds-username-input">OPDS Username</label></th>
+					<td>
+						<input type="text" id="opds-username-input" spellcheck="false" autocomplete="off">
+						<p>Username for OPDS access (leave empty for no username).</p>
+					</td>
+				</tr>
+				<tr>
+					<th><label for="opds-password-input">OPDS Password</label></th>
+					<td>
+						<input type="password" id="opds-password-input" spellcheck="false" autocomplete="new-password">
+						<p>Password for OPDS access (leave empty to use API key as password).</p>
+					</td>
+				</tr>
 			</table>
 			<h2>Logging</h2>
 			<table class="fold-table">
