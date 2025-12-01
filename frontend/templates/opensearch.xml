@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<OpenSearchDescription xmlns="http://a9.com/-/spec/opensearch/1.1/">
+  <ShortName>Kapowarr</ShortName>
+  <Description>Search Kapowarr comic library</Description>
+  <InputEncoding>UTF-8</InputEncoding>
+  <OutputEncoding>UTF-8</OutputEncoding>
+  <Image height="64" width="64" type="image/png">{{ icon_url }}</Image>
+  <Url type="application/atom+xml"
+       template="{{ search_url }}?query={searchTerms}" />
+</OpenSearchDescription>

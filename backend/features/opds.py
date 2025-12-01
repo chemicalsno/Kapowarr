@@ -9,11 +9,14 @@ Based on Mylar3's OPDS implementation (GPL-3.0 compatible).
 
 from base64 import b64decode
 from datetime import datetime
+from io import BytesIO
 from os.path import basename, exists, splitext
 from typing import Any, Dict, List, Union
 from urllib.parse import quote_plus
 
+import requests
 from flask import Blueprint, Response, render_template, request, send_file
+from PIL import Image
 
 from backend.base.logging import LOGGER
 from backend.implementations.volumes import Library, Volume, Issue
@@ -103,8 +106,28 @@ def _render_feed(title: str, feed_id: str, links: List[Dict], entries: List[Dict
 
 
 def _get_opds_root() -> str:
-    """Get the OPDS root URL."""
-    return '/opds'
+    """Get the OPDS root URL as an absolute URL.
+
+    Returns absolute URL like: http://localhost:5656/opds
+    """
+    # Get the base URL from the request (includes scheme and host)
+    base_url = request.url_root.rstrip('/')
+    return f'{base_url}/opds'
+
+
+def _get_cover_url(volume_id: int, thumbnail: bool = False) -> str:
+    """Get the local OPDS cover URL for a volume.
+
+    Args:
+        volume_id: The volume ID
+        thumbnail: If True, return thumbnail URL (320px width), otherwise full size
+
+    Returns:
+        The OPDS cover URL
+    """
+    root = _get_opds_root()
+    size = 'thumb' if thumbnail else 'full'
+    return f'{root}/cover/{volume_id}/{size}'
 
 
 @opds.route('/')
@@ -113,7 +136,7 @@ def root():
     if (error := _check_opds_access()):
         return error
     root_url = _get_opds_root()
-    
+
     links = [
         _make_link(
             href=root_url,
@@ -125,6 +148,12 @@ def root():
             href=root_url,
             type='application/atom+xml; profile=opds-catalog; kind=navigation',
             rel='self'
+        ),
+        _make_link(
+            href=f'{root_url}/opensearch.xml',
+            type='application/opensearchdescription+xml',
+            rel='search',
+            title='Search'
         ),
     ]
     
@@ -203,7 +232,7 @@ def all_volumes():
     for vol in volumes:
         vol_id, title, year, cover, file_count = vol
         display_title = f"{title} ({year})" if year else title
-        
+
         entry = {
             'title': display_title,
             'id': f'volume:{vol_id}',
@@ -211,7 +240,7 @@ def all_volumes():
             'content': f'{file_count} issues',
             'href': f'{root_url}/volume/{vol_id}',
             'kind': 'navigation',
-            'cover': cover,
+            'cover': _get_cover_url(vol_id, thumbnail=True) if cover else None,
         }
         entries.append(entry)
     
@@ -307,7 +336,7 @@ def volume_issues(volume_id: int):
             'content': filename,
             'href': f'{root_url}/download/{file_id}',
             'kind': 'acquisition',
-            'cover': vol_cover,
+            'cover': _get_cover_url(volume_id, thumbnail=True) if vol_cover else None,
             'mimetype': mimetype,
         }
         entries.append(entry)
@@ -360,7 +389,7 @@ def recent():
     # Get recent files
     cursor = get_db()
     files = cursor.execute("""
-        SELECT f.id, f.filepath, v.title, v.year, v.cover,
+        SELECT f.id, f.filepath, v.id, v.title, v.year, v.cover,
                i.issue_number, i.calculated_issue_number
         FROM files f
         JOIN issues_files if ON f.id = if.file_id
@@ -372,7 +401,7 @@ def recent():
 
     entries = []
     for file_row in files:
-        file_id, filepath, vol_title, vol_year, vol_cover, issue_num, calc_num = file_row
+        file_id, filepath, vol_id, vol_title, vol_year, vol_cover, issue_num, calc_num = file_row
         filename = basename(filepath)
 
         # Determine mimetype from extension
@@ -395,7 +424,7 @@ def recent():
             'content': filename,
             'href': f'{root_url}/download/{file_id}',
             'kind': 'acquisition',
-            'cover': vol_cover,
+            'cover': _get_cover_url(vol_id, thumbnail=True) if vol_cover else None,
             'mimetype': mimetype,
         }
         entries.append(entry)
@@ -408,6 +437,192 @@ def recent():
     )
 
 
+@opds.route('/opensearch.xml')
+def opensearch_descriptor():
+    """OpenSearch descriptor for OPDS search."""
+    if (error := _check_opds_access()):
+        return error
+    root_url = _get_opds_root()
+    base_url = request.url_root.rstrip('/')
+
+    xml = render_template(
+        'opensearch.xml',
+        icon_url=f'{base_url}/static/img/favicon.svg',
+        search_url=f'{root_url}/search'
+    )
+    return Response(xml, mimetype='application/opensearchdescription+xml')
+
+
+@opds.route('/search')
+def search():
+    """Search for comics - acquisition feed."""
+    if (error := _check_opds_access()):
+        return error
+    root_url = _get_opds_root()
+
+    query = request.args.get('query', '').strip()
+    index = int(request.args.get('index', 0))
+
+    if not query:
+        return _render_feed(
+            title='Kapowarr OPDS - Search',
+            feed_id='kapowarr:search:empty',
+            links=[
+                _make_link(
+                    href=root_url,
+                    type='application/atom+xml; profile=opds-catalog; kind=navigation',
+                    rel='start',
+                    title='Home'
+                ),
+            ],
+            entries=[]
+        )
+
+    links = [
+        _make_link(
+            href=root_url,
+            type='application/atom+xml; profile=opds-catalog; kind=navigation',
+            rel='start',
+            title='Home'
+        ),
+        _make_link(
+            href=f'{root_url}/search?query={quote_plus(query)}',
+            type='application/atom+xml; profile=opds-catalog; kind=acquisition',
+            rel='self'
+        ),
+    ]
+
+    # Search volumes and issues
+    cursor = get_db()
+    search_pattern = f'%{query}%'
+
+    # Search by volume title or issue number
+    files = cursor.execute("""
+        SELECT DISTINCT f.id, f.filepath, v.id, v.title, v.year, v.cover,
+               i.issue_number, i.calculated_issue_number
+        FROM files f
+        JOIN issues_files if ON f.id = if.file_id
+        JOIN issues i ON if.issue_id = i.id
+        JOIN volumes v ON i.volume_id = v.id
+        WHERE v.title LIKE ? OR i.issue_number LIKE ?
+        ORDER BY v.title, i.calculated_issue_number
+        LIMIT 100
+    """, (search_pattern, search_pattern)).fetchall()
+
+    entries = []
+    for file_row in files:
+        file_id, filepath, vol_id, vol_title, vol_year, vol_cover, issue_num, calc_num = file_row
+        filename = basename(filepath)
+
+        # Determine mimetype from extension
+        ext = splitext(filename)[1].lower()
+        mimetypes_map = {
+            '.cbz': 'application/x-cbz',
+            '.cbr': 'application/x-cbr',
+            '.pdf': 'application/pdf',
+            '.epub': 'application/epub+zip',
+        }
+        mimetype = mimetypes_map.get(ext, 'application/octet-stream')
+
+        display_title = f"{vol_title} ({vol_year})" if vol_year else vol_title
+        issue_title = f"#{issue_num}" if issue_num else f"Issue {calc_num}"
+
+        entry = {
+            'title': f"{display_title} {issue_title}",
+            'id': f'file:{file_id}',
+            'updated': _now(),
+            'content': filename,
+            'href': f'{root_url}/download/{file_id}',
+            'kind': 'acquisition',
+            'cover': _get_cover_url(vol_id, thumbnail=True) if vol_cover else None,
+            'mimetype': mimetype,
+        }
+        entries.append(entry)
+
+    # Pagination
+    total = len(entries)
+    if total > index + PAGE_SIZE:
+        links.append(_make_link(
+            href=f'{root_url}/search?query={quote_plus(query)}&index={index + PAGE_SIZE}',
+            type='application/atom+xml; profile=opds-catalog; kind=acquisition',
+            rel='next'
+        ))
+    if index >= PAGE_SIZE:
+        links.append(_make_link(
+            href=f'{root_url}/search?query={quote_plus(query)}&index={index - PAGE_SIZE}',
+            type='application/atom+xml; profile=opds-catalog; kind=acquisition',
+            rel='previous'
+        ))
+
+    return _render_feed(
+        title=f'Kapowarr OPDS - Search: {query}',
+        feed_id=f'kapowarr:search:{query}',
+        links=links,
+        entries=entries[index:index + PAGE_SIZE]
+    )
+
+
+@opds.route('/cover/<int:volume_id>/<size>')
+def cover_image(volume_id: int, size: str):
+    """Serve cover image for a volume, optionally as a thumbnail.
+
+    Args:
+        volume_id: The volume ID
+        size: 'full' or 'thumb' (320px width thumbnail)
+    """
+    if (error := _check_opds_access()):
+        return error
+
+    # Get volume cover URL from database
+    cursor = get_db()
+    result = cursor.execute(
+        "SELECT cover FROM volumes WHERE id = ?",
+        (volume_id,)
+    ).fetchone()
+
+    if not result or not result[0]:
+        return Response("Cover not found", status=404)
+
+    cover_url = result[0]
+
+    try:
+        # Fetch the cover image from ComicVine
+        response = requests.get(cover_url, timeout=10)
+        response.raise_for_status()
+
+        # Load image
+        img = Image.open(BytesIO(response.content))
+
+        # Convert to RGB if needed (for PNG with transparency)
+        if img.mode in ('RGBA', 'LA', 'P'):
+            background = Image.new('RGB', img.size, (255, 255, 255))
+            if img.mode == 'P':
+                img = img.convert('RGBA')
+            background.paste(img, mask=img.split()[-1] if img.mode == 'RGBA' else None)
+            img = background
+
+        # Resize if thumbnail requested
+        if size == 'thumb':
+            # Thumbnail: max 320px width, maintain aspect ratio
+            img.thumbnail((320, 999999), Image.Resampling.LANCZOS)
+
+        # Save to bytes
+        output = BytesIO()
+        img.save(output, format='JPEG', quality=85, optimize=True)
+        output.seek(0)
+
+        return send_file(
+            output,
+            mimetype='image/jpeg',
+            as_attachment=False,
+            download_name=f'cover_{volume_id}.jpg'
+        )
+
+    except Exception as e:
+        LOGGER.error(f'Error serving cover for volume {volume_id}: {e}')
+        return Response("Error loading cover", status=500)
+
+
 @opds.route('/download/<int:file_id>')
 def download_file(file_id: int):
     """Download a comic file."""
@@ -418,17 +633,17 @@ def download_file(file_id: int):
         "SELECT filepath FROM files WHERE id = ?",
         (file_id,)
     ).fetchone()
-    
+
     if not result:
         return Response("File not found", status=404)
-    
+
     filepath = result[0]
-    
+
     if not exists(filepath):
         return Response("File not found on disk", status=404)
-    
+
     filename = basename(filepath)
-    
+
     # Determine mimetype
     ext = splitext(filename)[1].lower()
     mimetypes = {
@@ -438,7 +653,7 @@ def download_file(file_id: int):
         '.epub': 'application/epub+zip',
     }
     mimetype = mimetypes.get(ext, 'application/octet-stream')
-    
+
     return send_file(
         filepath,
         mimetype=mimetype,
