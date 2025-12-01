@@ -403,7 +403,8 @@ class Sabnzbd(BaseExternalClient):
                 fail_message = entry.get('fail_message', '')
                 LOGGER.debug(
                     f"Found {download_id} in Sabnzbd history: "
-                    f"status={status}, fail_message={fail_message}"
+                    f"status={status}, fail_message={fail_message}, "
+                    f"keys={list(entry.keys())}"
                 )
                 state = self.STATE_MAPPING.get(status, DownloadState.FAILED_STATE)
 

@@ -1,3 +1,10 @@
+function togglePasswordVisibility(button) {
+	const input = button.parentElement.querySelector('input');
+	const isPassword = input.type === 'password';
+	input.type = isPassword ? 'text' : 'password';
+	button.classList.toggle('showing', isPassword);
+}
+
 function fillSettings(api_key) {
 	fetchAPI('/settings', api_key)
 	.then(json => {
