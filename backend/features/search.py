@@ -5,8 +5,8 @@ from typing import Dict, List, Tuple, Union
 
 from backend.base.definitions import (Constants, GCDownloadSource,
                                       QUERY_FORMATS, MatchedSearchResultData,
-                                      SearchResultData, SearchSource,
-                                      SpecialVersion)
+                                      PreferredFormat, SearchResultData,
+                                      SearchSource, SpecialVersion)
 from backend.base.helpers import (AsyncSession, check_overlapping_issues,
                                   extract_year_from_date, force_range,
                                   get_subclasses)
@@ -23,6 +23,31 @@ SOURCE_TO_DOWNLOAD_SOURCE = {
     'NZBHydra2': GCDownloadSource.NZBHYDRA2.value,
     'Usenet': GCDownloadSource.NZBHYDRA2.value,
 }
+
+
+def _matches_preferred_format(result: SearchResultData) -> bool:
+    """Check if a search result matches the user's preferred format setting.
+
+    Args:
+        result: A search result containing display_title.
+
+    Returns:
+        True if the result matches the preferred format, False otherwise.
+    """
+    preferred = Settings().sv.preferred_format
+
+    # If set to ANY, accept all formats
+    if preferred == PreferredFormat.ANY:
+        return True
+
+    # Check if the display_title contains the preferred extension
+    title_lower = result['display_title'].lower()
+    if preferred == PreferredFormat.CBR:
+        return '.cbr' in title_lower or 'cbr' in title_lower.split()[-1] if title_lower else False
+    elif preferred == PreferredFormat.CBZ:
+        return '.cbz' in title_lower or 'cbz' in title_lower.split()[-1] if title_lower else False
+
+    return True
 
 
 def _rank_search_result(
@@ -370,7 +395,7 @@ def auto_search(
     search_results = [
         r
         for r in manual_search(volume_id, issue_id)
-        if r['match']
+        if r['match'] and _matches_preferred_format(r)
     ]
 
     if issue_id is not None or (
