@@ -385,11 +385,11 @@ class Settings(metaclass=Singleton):
         key_data = KeyCollection.__dataclass_fields__[key]
 
         # Convert type to special type
-        if key_data.type is CommaList and isinstance(value, list):
+        if key_data.type == CommaList and isinstance(value, list):
             # Convert list to CommaList
             value = CommaList(value)
 
-        elif issubclass(key_data.type, BaseEnum):
+        elif isinstance(key_data.type, type) and issubclass(key_data.type, BaseEnum):
             # Convert string to Enum value
             try:
                 value = key_data.type(value)
