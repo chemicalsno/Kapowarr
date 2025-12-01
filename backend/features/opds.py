@@ -563,6 +563,8 @@ def cover_image(volume_id: int):
     if (error := _check_opds_access()):
         return error
 
+    LOGGER.debug(f'OPDS: Serving cover for volume {volume_id}')
+
     # Get volume cover from database
     cursor = get_db()
     result = cursor.execute(
@@ -572,6 +574,7 @@ def cover_image(volume_id: int):
 
     if not result or not result[0]:
         # No cover in database - return 404
+        LOGGER.warning(f'OPDS: No cover found for volume {volume_id}')
         return Response("Cover not found", status=404)
 
     cover_data = result[0]
@@ -623,6 +626,9 @@ def download_file(file_id: int):
     """Download a comic file."""
     if (error := _check_opds_access()):
         return error
+
+    LOGGER.info(f'OPDS: Download request for file_id={file_id}')
+
     cursor = get_db()
     result = cursor.execute(
         "SELECT filepath FROM files WHERE id = ?",
@@ -630,11 +636,14 @@ def download_file(file_id: int):
     ).fetchone()
 
     if not result:
+        LOGGER.error(f'OPDS: File {file_id} not found in database')
         return Response("File not found", status=404)
 
     filepath = result[0]
+    LOGGER.info(f'OPDS: Attempting to serve file: {filepath}')
 
     if not exists(filepath):
+        LOGGER.error(f'OPDS: File does not exist on disk: {filepath}')
         return Response("File not found on disk", status=404)
 
     filename = basename(filepath)
@@ -648,6 +657,8 @@ def download_file(file_id: int):
         '.epub': 'application/epub+zip',
     }
     mimetype = mimetypes.get(ext, 'application/octet-stream')
+
+    LOGGER.info(f'OPDS: Serving {filename} ({mimetype}) from {filepath}')
 
     return send_file(
         filepath,
