@@ -37,6 +37,8 @@ chinese_volume_regex_2 = compile(r'(?:卷|册)(\d+)', IGNORECASE)
 korean_volume_regex = compile(r'제?(\d+)권', IGNORECASE)
 japanese_volume_regex = compile(r'(\d+)巻', IGNORECASE)
 french_issue_regex = compile(r'\bT(?:omes?)?(?=[\s\.]?\d)', IGNORECASE)
+# Month names that can appear in scene release filenames (e.g., "No.15.Feb.2013")
+month_regex = compile(r'(?<=[.\s_-])(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)(?=[.\s_-])', IGNORECASE)
 
 # Extract data from (stripped)filename
 special_version_regex = compile(r'(?:(?<!\s{3})\b|\()(?:(?P<tpb>tpb|trade paper back)|(?P<one_shot>os|one[ \-_]?shot)|(?P<hard_cover>hc|hard[ \-_]?cover)|(?P<omnibus>omnibus))(?:\b|\))', IGNORECASE)
@@ -230,7 +232,8 @@ def extract_volume_number(
 def _translate_filepath(filepath: str) -> str:
     """Sort of "translate" a filepath by replacing international terms for
     "issue" and "volume" with their English equivalent. E.g. "3巻" is
-    replaced with "Volume 3".
+    replaced with "Volume 3". Also removes month names that can interfere
+    with issue number extraction.
 
     Args:
         filepath (str): The filepath.
@@ -239,6 +242,9 @@ def _translate_filepath(filepath: str) -> str:
         str: The filepath, with any international terms replaced with their
             English versions.
     """
+    # Remove month names that can interfere with issue number extraction
+    # e.g., "No.15.Feb.2013" -> "No.15..2013"
+    filepath = month_regex.sub('', filepath)
     filepath = french_issue_regex.sub("Issue", filepath)
     if 'Том' in filepath:
         filepath = russian_volume_regex.sub(r'Volume \1', filepath)
