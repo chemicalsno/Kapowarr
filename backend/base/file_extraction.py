@@ -52,6 +52,9 @@ issue_regex_7 = compile(r'(?:part[\s\._]|(?<=[\s\._])|^)(\-?' + issue_regex_snip
 year_regex = compile(r'\((?:[a-z]+\.?\s)?' + year_regex_snippet + r'\)|--' + year_regex_snippet + r'--|__' + year_regex_snippet + r'__|, ' + year_regex_snippet + r'\s{3}|\b(?:(?:\d{2}-){1,2}(\d{4})|(\d{4})(?:-\d{2}){1,2})\b', IGNORECASE)
 series_regex = compile(r'(^(\d+\.)?\s+|^\d+\s{3}|\s(?=\s)|[\s,]+$)')
 annual_regex = compile(r'(?:\+|plus)[\s\._]?annuals?|annuals?[\s\._]?(?:\+|plus)|^((?!annuals?).)*$', IGNORECASE) # If regex matches, it's NOT an annual
+# Enhanced annual detection with year extraction (Mylar3-inspired)
+# Matches patterns like "Annual 2023", "Annual #1 (2023)", etc.
+annual_year_regex = compile(r'\bannuals?[\s\._]?(?:#?\d+[\s\._]?)?\(?(\d{4})\)?', IGNORECASE)
 cover_regex = compile(r'\b(?<!no[ \-_])(?<!hard[ \-_])(?<!\d[ \-_]covers)cover\b|n\d+c(\d+)|(?:\b|\d)i?fc\b|^folder$', IGNORECASE)
 page_regex = compile(r'^(\d+(?:[a-f]|_\d+)?)$|\b(?i:page|pg)[\s\.\-_]?(\d+(?:[a-f]|_\d+)?)|n?\d+[_\-p](\d+(?:[a-f]|_\d+)?)')
 page_regex_2 = compile(r'(\d+)')
@@ -381,10 +384,19 @@ def extract_filename_data(
     # Generalise filename
     filepath = _translate_filepath(normalise_string(filepath))
 
-    # Determine whether it's an annual
+    # Determine whether it's an annual and extract annual year if present
+    # (Mylar3-inspired enhancement for better annual detection)
     annual_result = annual_regex.search(basename(filepath))
     annual_folder_result = annual_regex.search(basename(dirname(filepath)))
     annual = not (annual_result and annual_folder_result)
+
+    # Try to extract year from annual title (e.g., "Batman Annual 2023")
+    annual_year = None
+    if annual:
+        annual_year_match = annual_year_regex.search(filepath)
+        if annual_year_match:
+            annual_year = annual_year_match.group(1)
+
     filepath = filepath.replace('+', ' ')
 
     # Store parts of the input and converted versions of the input
@@ -398,6 +410,10 @@ def extract_filename_data(
     ) + ' '
 
     # Find year
+    # Prefer annual year if detected (Mylar3-inspired enhancement)
+    if annual_year:
+        year = annual_year
+
     if prefer_folder_year:
         year_order = (foldername, filename, upper_foldername)
     else:

@@ -7,8 +7,10 @@ issues and volumes.
 
 from __future__ import annotations
 
+from difflib import SequenceMatcher
 from re import compile
 from typing import TYPE_CHECKING, List, Mapping, Tuple, Union
+from unicodedata import normalize as unicode_normalize
 
 from backend.base.definitions import IssueData, SpecialVersion, VolumeMetadata
 from backend.base.helpers import force_range
@@ -23,13 +25,32 @@ clean_title_regex = compile(
 )
 
 # Common scene/release group tags to strip from titles for better matching
-# Based on Mylar3's approach
+# Based on Mylar3's approach, expanded with more common tags
 SCENE_GROUPS = (
     '-empire', '-empire-hd', 'minutemen-', '-dcp', 'glorith-hd',
     '-dts', '-nem', '-getcomics', '-ettv', '-worldmags', '-nogrp',
     '-phillywilly', '-spawn', '-digital', '-zone-empire', '-minutemen',
     '-oshot', '-ks', '-fawkes', '-hive', '-son of ultron', '-db',
+    '-mephisto', '-kileko', '-oroboros', '-bean', '-hour', '-fant0m',
+    '-blackmask', '-sanctum', '-hocr', '-mr', '-og', '-cypher',
+    '-tlc', '-mojo', '-tpv', '-dc', '-marvel', '-image', '-zone'
 )
+
+# Quality indicators found in release names (Mylar3-inspired)
+QUALITY_INDICATORS = {
+    'c2c': 'Cover to Cover scan',
+    'hd': 'High Definition',
+    'hr': 'High Resolution',
+    'hybrid': 'Hybrid release (multiple sources)',
+    'retail': 'Retail quality',
+    'webrip': 'Web rip',
+    'web-dl': 'Web download',
+    'digital': 'Digital release',
+    'scanlation': 'Scanlation',
+    'scan': 'Scanned',
+    'hocr': 'High quality OCR',
+    'enhanced': 'Enhanced quality',
+}
 
 
 def strip_scene_groups(title: str) -> str:
@@ -47,10 +68,93 @@ def strip_scene_groups(title: str) -> str:
     return result
 
 
+def extract_quality_indicators(title: str) -> List[str]:
+    """Extract quality indicators from a release title.
+
+    Identifies quality markers like 'c2c', 'HD', 'retail', etc. from the title.
+    Useful for ranking search results by quality (Mylar3-inspired).
+
+    Args:
+        title (str): The release title to analyze.
+
+    Returns:
+        List[str]: List of detected quality indicator keys.
+    """
+    title_lower = title.lower()
+    found_indicators = []
+
+    for indicator in QUALITY_INDICATORS:
+        # Match whole words or common patterns
+        if f' {indicator} ' in f' {title_lower} ' or f'-{indicator}' in title_lower or f'({indicator})' in title_lower:
+            found_indicators.append(indicator)
+
+    return found_indicators
+
+
+def normalize_title_unicode(title: str) -> str:
+    """Normalize unicode characters in a title for better matching.
+
+    Converts various unicode representations to a canonical form (NFD),
+    which helps match titles with different unicode encodings.
+    Mylar3-inspired enhancement for international title support.
+
+    Args:
+        title (str): The title to normalize.
+
+    Returns:
+        str: The unicode-normalized title.
+    """
+    # NFD (Canonical Decomposition) separates combined characters
+    # e.g., é becomes e + ́ (combining acute accent)
+    # This helps match different unicode representations of the same character
+    return unicode_normalize('NFD', title)
+
+
+def fuzzy_title_match(title1: str, title2: str, threshold: float = 0.85) -> bool:
+    """Perform fuzzy string matching on two titles using sequence matching.
+
+    This addresses the biggest missing feature identified in both Kapowarr
+    and Mylar3: fuzzy string matching for titles with slight variations.
+
+    Args:
+        title1 (str): The first title.
+        title2 (str): The second title.
+        threshold (float, optional): Similarity threshold (0.0-1.0).
+            Defaults to 0.85 (85% similarity).
+
+    Returns:
+        bool: Whether the titles are similar enough to be considered a match.
+    """
+    # Normalize unicode first (Mylar3-inspired for international support)
+    title1 = normalize_title_unicode(title1)
+    title2 = normalize_title_unicode(title2)
+
+    # Clean both titles using the same cleaning process
+    clean1 = clean_title_regex.sub(
+        '',
+        strip_scene_groups(title1.lower())
+    ).replace(' ', '')
+
+    clean2 = clean_title_regex.sub(
+        '',
+        strip_scene_groups(title2.lower())
+    ).replace(' ', '')
+
+    # Empty strings should not fuzzy match
+    if not clean1 or not clean2:
+        return False
+
+    # Use SequenceMatcher for similarity ratio
+    ratio = SequenceMatcher(None, clean1, clean2).ratio()
+
+    return ratio >= threshold
+
+
 def match_title(
     title1: str,
     title2: str,
-    allow_contains: bool = False
+    allow_contains: bool = False,
+    fuzzy: bool = True
 ) -> bool:
     """Determine if two titles match; if they refer to the same thing.
 
@@ -60,10 +164,16 @@ def match_title(
             compared.
         allow_contains (bool, optional): Also match when title2 is found
             somewhere in title1.
+        fuzzy (bool, optional): Enable fuzzy string matching if exact match fails.
+            Defaults to True.
 
     Returns:
         bool: Whether the titles match.
     """
+    # Normalize unicode first for consistent comparison
+    title1 = normalize_title_unicode(title1)
+    title2 = normalize_title_unicode(title2)
+
     # Strip scene groups first, then apply regex cleaning
     clean_reference_title = clean_title_regex.sub(
         '',
@@ -75,10 +185,19 @@ def match_title(
         strip_scene_groups(title2)
     ).replace(' ', '')
 
+    # Try exact match first
     if allow_contains:
-        return clean_title in clean_reference_title
+        if clean_title in clean_reference_title:
+            return True
     else:
-        return clean_reference_title == clean_title
+        if clean_reference_title == clean_title:
+            return True
+
+    # Fall back to fuzzy matching if enabled and exact match failed
+    if fuzzy:
+        return fuzzy_title_match(title1, title2)
+
+    return False
 
 
 def match_year(
