@@ -22,6 +22,30 @@ clean_title_regex = compile(
     r'((?<=annual)s|/|\-|–|\+|,|\.|\!|:|\bthe\s|\band\b|&|’|\'|\"|\bone[\-\s]?shot\b|\bhard[\-\s]?cover\b|\bomnibus\b|\btpb\b)'
 )
 
+# Common scene/release group tags to strip from titles for better matching
+# Based on Mylar3's approach
+SCENE_GROUPS = (
+    '-empire', '-empire-hd', 'minutemen-', '-dcp', 'glorith-hd',
+    '-dts', '-nem', '-getcomics', '-ettv', '-worldmags', '-nogrp',
+    '-phillywilly', '-spawn', '-digital', '-zone-empire', '-minutemen',
+    '-oshot', '-ks', '-fawkes', '-hive', '-son of ultron', '-db',
+)
+
+
+def strip_scene_groups(title: str) -> str:
+    """Remove common scene/release group tags from a title.
+
+    Args:
+        title (str): The title to clean.
+
+    Returns:
+        str: The title with scene group tags removed.
+    """
+    result = title.lower()
+    for group in SCENE_GROUPS:
+        result = result.replace(group, '')
+    return result
+
 
 def match_title(
     title1: str,
@@ -40,14 +64,15 @@ def match_title(
     Returns:
         bool: Whether the titles match.
     """
+    # Strip scene groups first, then apply regex cleaning
     clean_reference_title = clean_title_regex.sub(
         '',
-        title1.lower()
+        strip_scene_groups(title1)
     ).replace(' ', '')
 
     clean_title = clean_title_regex.sub(
         '',
-        title2.lower()
+        strip_scene_groups(title2)
     ).replace(' ', '')
 
     if allow_contains:
