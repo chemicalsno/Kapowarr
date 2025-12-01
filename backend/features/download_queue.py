@@ -446,7 +446,7 @@ class DownloadHandler(metaclass=Singleton):
         self,
         link: str,
         volume_id: int,
-        issue_id: Union[int, None] = None,
+        issue_id: Union[int, float, None] = None,
         force_match: bool = False
     ) -> Tuple[List[dict], Union[EnqueuingDownloadFailureReason, None]]:
         """Add a download to the queue.
@@ -457,8 +457,8 @@ class DownloadHandler(metaclass=Singleton):
             volume_id (int): The id of the volume for which the download is
             intended.
 
-            issue_id (Union[int, None], optional): The id of the issue for which
-            the download is intended.
+            issue_id (Union[int, float, None], optional): The id of the issue for
+            which the download is intended, or a calculated issue number (float).
                 Defaults to None.
 
             force_match (bool, optional): On sources where downloads are
@@ -613,7 +613,7 @@ class DownloadHandler(metaclass=Singleton):
 
     def add_multiple(
         self,
-        add_args: Iterable[Tuple[str, int, Union[int, None], bool]]
+        add_args: Iterable[Tuple[str, int, Union[int, float, None], bool]]
     ) -> None:
         async def add_wrapper():
             await gather(
