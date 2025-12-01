@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from asyncio import run
 from datetime import datetime, timedelta
-from functools import lru_cache
 from io import BytesIO
 from os.path import dirname, exists, isdir, relpath
 from re import IGNORECASE, compile
@@ -90,7 +89,6 @@ class Issue:
         return
 
     @classmethod
-    @lru_cache(maxsize=3)
     def from_volume_and_calc_number(
         cls,
         volume_id: int,
@@ -110,6 +108,13 @@ class Issue:
         Returns:
             Issue: The issue instance.
         """
+        # Debug: log what we're looking for
+        LOGGER.debug(
+            f"Looking up issue: volume_id={volume_id}, "
+            f"calculated_issue_number={calculated_issue_number}"
+        )
+
+        # Try exact match first
         issue_id: Union[int, None] = get_db().execute("""
             SELECT id
             FROM issues
@@ -120,9 +125,42 @@ class Issue:
             (volume_id, calculated_issue_number)
         ).exists()
 
+        # If exact match fails, try with small tolerance for float precision
         if not issue_id:
+            LOGGER.debug(
+                f"Exact match failed, trying range query for "
+                f"calc_issue_number around {calculated_issue_number}"
+            )
+            issue_id = get_db().execute("""
+                SELECT id
+                FROM issues
+                WHERE volume_id = ?
+                    AND calculated_issue_number BETWEEN ? AND ?
+                LIMIT 1;
+                """,
+                (volume_id,
+                 calculated_issue_number - 0.001,
+                 calculated_issue_number + 0.001)
+            ).exists()
+
+        if not issue_id:
+            # Log all issues in this volume for debugging
+            all_issues = get_db().execute("""
+                SELECT id, issue_number, calculated_issue_number
+                FROM issues
+                WHERE volume_id = ?
+                LIMIT 5;
+                """,
+                (volume_id,)
+            ).fetchall()
+            LOGGER.warning(
+                f"Issue not found for volume {volume_id}, "
+                f"calc_number {calculated_issue_number}. "
+                f"Sample issues in volume: {all_issues}"
+            )
             raise IssueNotFound(-1)
 
+        LOGGER.debug(f"Found issue_id={issue_id}")
         return cls(issue_id, check_existence=True)
 
     def get_data(self) -> IssueData:
