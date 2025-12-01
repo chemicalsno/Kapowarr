@@ -15,6 +15,7 @@ function fillSettings(api_key) {
 		document.querySelector('#api-input').value = api_key;
 		document.querySelector('#cv-input').value = json.result.comicvine_api_key;
 		document.querySelector('#flaresolverr-input').value = json.result.flaresolverr_base_url;
+		document.querySelector('#opds-input').checked = json.result.opds_enabled;
 		document.querySelector('#log-level-input').value = json.result.log_level;
 	});
 	document.querySelector('#theme-input').value = getLocalStorage('theme')['theme'];
@@ -31,6 +32,7 @@ function saveSettings(api_key) {
 		'auth_password': document.querySelector('#password-input').value,
 		'comicvine_api_key': document.querySelector('#cv-input').value,
 		'flaresolverr_base_url': document.querySelector('#flaresolverr-input').value,
+		'opds_enabled': document.querySelector('#opds-input').checked,
 		'log_level': parseInt(document.querySelector('#log-level-input').value)
 	};
 	sendAPI('PUT', '/settings', api_key, {}, data)

@@ -98,6 +98,8 @@ class PublicSettingsValues:
 
     date_type: DateType = DateType.COVER_DATE
 
+    opds_enabled: bool = False
+
     def todict(self, to_public: bool = True) -> Dict[str, Any]:
         """Convert the dataclass to a dictionary.
 

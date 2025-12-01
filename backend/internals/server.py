@@ -85,6 +85,7 @@ class Server(metaclass=Singleton):
         """
         from frontend.api import api
         from frontend.ui import ui
+        from backend.features.opds import opds
 
         app = Flask(
             __name__,
@@ -130,6 +131,7 @@ class Server(metaclass=Singleton):
         # Add endpoints
         app.register_blueprint(ui)
         app.register_blueprint(api, url_prefix=Constants.API_PREFIX)
+        app.register_blueprint(opds)
 
         # Setup db handling
         app.teardown_appcontext(close_db)

@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed
+  xmlns="http://www.w3.org/2005/Atom"
+  xmlns:opds="http://opds-spec.org/2010/catalog"
+  xmlns:dcterms="http://purl.org/dc/terms/"
+>
+  <title>{{ title }}</title>
+  <id>{{ id }}</id>
+  <updated>{{ updated }}</updated>
+  <author>
+    <name>Kapowarr</name>
+    <uri>https://github.com/Casvt/Kapowarr</uri>
+  </author>
+  {% for link in links %}
+  <link
+    rel="{{ link.rel }}"
+    href="{{ link.href }}"
+    type="{{ link.type }}"
+    {% if link.title %}title="{{ link.title }}"{% endif %}
+  />
+  {% endfor %}
+  {% for entry in entries %}
+  <entry>
+    <title>{{ entry.title }}</title>
+    <id>{{ entry.id }}</id>
+    <updated>{{ entry.updated }}</updated>
+    <content type="text">{{ entry.content }}</content>
+    {% if entry.kind == 'acquisition' %}
+    <link
+      href="{{ entry.href }}"
+      rel="http://opds-spec.org/acquisition"
+      type="application/octet-stream"
+    />
+    {% else %}
+    <link
+      href="{{ entry.href }}"
+      rel="subsection"
+      type="application/atom+xml; profile=opds-catalog; kind={{ entry.kind }}"
+    />
+    {% endif %}
+    {% if entry.cover %}
+    <link
+      href="{{ entry.cover }}"
+      type="image/jpeg"
+      rel="http://opds-spec.org/image"
+    />
+    {% endif %}
+  </entry>
+  {% endfor %}
+</feed>
