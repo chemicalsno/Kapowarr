@@ -175,11 +175,19 @@
 	width: min(50rem, 100%);
 }
 
+#api-container .password-input-wrapper {
+	flex: 1;
+}
+
+#api-container .password-toggle {
+	border-radius: 0;
+}
+
 #api-input {
+	flex: 1;
 	overflow-x: auto;
 	border-right: none;
-	border-top-right-radius: 0;
-	border-bottom-right-radius: 0;
+	border-radius: 6px 0 0 6px;
 }
 
 #generate-api {

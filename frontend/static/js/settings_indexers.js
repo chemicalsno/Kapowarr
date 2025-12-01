@@ -42,62 +42,50 @@ function saveSettings(api_key) {
 //
 function testNZBHydra(api_key) {
 	const button = document.querySelector('#test-nzbhydra-button');
-	const icon = document.querySelector('#test-hydra-icon');
 	const resultDiv = document.querySelector('#test-hydra-result');
 
 	const baseUrl = document.querySelector('#nzbhydra-base-url-input').value;
 	const apiKey = document.querySelector('#nzbhydra-api-key-input').value;
 
 	if (!baseUrl || !apiKey) {
-		resultDiv.textContent = '⚠ Please enter Base URL and API Key first';
+		resultDiv.textContent = 'Please enter Base URL and API Key first';
 		resultDiv.className = 'test-result error';
 		resultDiv.style.display = 'block';
 		setTimeout(() => resultDiv.style.display = 'none', 5000);
 		return;
 	}
 
-	// Show spinner
-	icon.src = icon.src.replace('refresh.svg', 'loading.svg');
-	icon.classList.add('spinning');
 	button.disabled = true;
 	resultDiv.style.display = 'none';
 
 	// Simple test: try to hit the API
 	fetch(`${baseUrl}/api?t=search&apikey=${apiKey}&q=test&o=json`, { method: 'GET', mode: 'no-cors' })
 	.then(() => {
-		// Success - show checkmark
-		icon.src = icon.src.replace('loading.svg', 'check.svg');
-		icon.classList.remove('spinning');
-		icon.classList.add('success-icon');
-
+		// Success
+		button.classList.add('show-success');
 		resultDiv.className = 'test-result success';
-		resultDiv.innerHTML = '✓ Successfully connected to NZBHydra2';
+		resultDiv.textContent = 'Successfully connected to NZBHydra2';
 		resultDiv.style.display = 'block';
 
-		// Reset after 5 seconds
+		// Reset after 3 seconds
 		setTimeout(() => {
-			icon.src = icon.src.replace('check.svg', 'refresh.svg');
-			icon.classList.remove('success-icon');
+			button.classList.remove('show-success');
 			button.disabled = false;
 			resultDiv.style.display = 'none';
-		}, 5000);
+		}, 3000);
 	})
 	.catch(error => {
-		// Error - show X
-		icon.src = icon.src.replace('loading.svg', 'cancel.svg');
-		icon.classList.remove('spinning');
-		icon.classList.add('error-icon');
-
+		// Error
+		button.classList.add('show-fail');
 		resultDiv.className = 'test-result error';
-		resultDiv.textContent = '✗ Connection failed - check URL and API key';
+		resultDiv.textContent = 'Connection failed - check URL and API key';
 		resultDiv.style.display = 'block';
 
-		// Reset after 5 seconds
+		// Reset after 3 seconds
 		setTimeout(() => {
-			icon.src = icon.src.replace('cancel.svg', 'refresh.svg');
-			icon.classList.remove('error-icon');
+			button.classList.remove('show-fail');
 			button.disabled = false;
-		}, 5000);
+		}, 3000);
 	});
 }
 
