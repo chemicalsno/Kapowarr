@@ -118,15 +118,17 @@ class PublicSettingsValues:
         """
         result = asdict(self)
 
+        # Always convert enums to their string values for database storage
+        for k, v in result.items():
+            if isinstance(v, BaseEnum):
+                result[k] = v.value
+
         if not to_public:
             return result
 
         for k, v in result.items():
             if k == "auth_password" and v:
                 result[k] = Constants.PASSWORD_REPLACEMENT
-
-            if isinstance(v, BaseEnum):
-                result[k] = v.value
 
         return result
 
