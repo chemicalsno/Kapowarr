@@ -329,4 +329,18 @@ class extract_filename_data(unittest.TestCase):
                 {'series': 'Iron Man', 'year': 2012, 'volume_number': 2, 'special_version': 'metadata', 'issue_number': 5.0, 'annual': False}
         }
         self.run_cases(cases)
+
+    def test_month_name_issue_number(self):
+        cases = {
+            'Swamp.Thing.Vol.5.No.15.Feb.2013.SCAN.Comic.eBook-iNTENSiTY.pdf':
+                {
+                    'series': 'Swamp Thing',
+                    'year': 2013,
+                    'volume_number': 5,
+                    'special_version': None,
+                    'issue_number': 15.0,
+                    'annual': False
+                }
+        }
+        self.run_cases(cases)
     # autopep8: on
