@@ -121,26 +121,6 @@ def _get_opds_root() -> str:
     return f'{base_url}/opds'
 
 
-def _get_cover_url(volume_id: int, cover_url: str, thumbnail: bool = False) -> str:
-    """Get the cover URL for a volume.
-
-    Args:
-        volume_id: The volume ID
-        cover_url: The ComicVine cover URL (used as fallback if PIL unavailable)
-        thumbnail: If True, return thumbnail URL (320px width), otherwise full size
-
-    Returns:
-        The OPDS cover URL (local if PIL available, ComicVine URL otherwise)
-    """
-    if HAS_PIL and thumbnail:
-        root = _get_opds_root()
-        size = 'thumb' if thumbnail else 'full'
-        return f'{root}/cover/{volume_id}/{size}'
-    else:
-        # Fall back to ComicVine URL if PIL not available
-        return cover_url
-
-
 @opds.route('/')
 def root():
     """Root OPDS catalog - navigation feed."""
@@ -229,7 +209,7 @@ def all_volumes():
     # Get volumes that have files
     cursor = get_db()
     volumes = cursor.execute("""
-        SELECT DISTINCT v.id, v.title, v.year, v.cover,
+        SELECT DISTINCT v.id, v.title, v.year,
                COUNT(DISTINCT f.id) as file_count
         FROM volumes v
         JOIN issues i ON i.volume_id = v.id
@@ -238,10 +218,10 @@ def all_volumes():
         GROUP BY v.id
         ORDER BY v.title
     """).fetchall()
-    
+
     entries = []
     for vol in volumes:
-        vol_id, title, year, cover, file_count = vol
+        vol_id, title, year, file_count = vol
         display_title = f"{title} ({year})" if year else title
 
         entry = {
@@ -251,7 +231,7 @@ def all_volumes():
             'content': f'{file_count} issues',
             'href': f'{root_url}/volume/{vol_id}',
             'kind': 'navigation',
-            'cover': _get_cover_url(vol_id, cover, thumbnail=True) if cover else None,
+            'cover': f'{root_url}/cover/{vol_id}',
         }
         entries.append(entry)
     
@@ -289,14 +269,14 @@ def volume_issues(volume_id: int):
     # Get volume info
     cursor = get_db()
     vol_info = cursor.execute(
-        "SELECT title, year, cover FROM volumes WHERE id = ?",
+        "SELECT title, year FROM volumes WHERE id = ?",
         (volume_id,)
     ).fetchone()
-    
+
     if not vol_info:
         return Response("Volume not found", status=404)
-    
-    vol_title, vol_year, vol_cover = vol_info
+
+    vol_title, vol_year = vol_info
     display_title = f"{vol_title} ({vol_year})" if vol_year else vol_title
     
     links = [
@@ -347,7 +327,7 @@ def volume_issues(volume_id: int):
             'content': filename,
             'href': f'{root_url}/download/{file_id}',
             'kind': 'acquisition',
-            'cover': _get_cover_url(volume_id, vol_cover, thumbnail=True) if vol_cover else None,
+            'cover': f'{root_url}/cover/{volume_id}',
             'mimetype': mimetype,
         }
         entries.append(entry)
@@ -400,7 +380,7 @@ def recent():
     # Get recent files
     cursor = get_db()
     files = cursor.execute("""
-        SELECT f.id, f.filepath, v.id, v.title, v.year, v.cover,
+        SELECT f.id, f.filepath, v.id, v.title, v.year,
                i.issue_number, i.calculated_issue_number
         FROM files f
         JOIN issues_files if ON f.id = if.file_id
@@ -412,7 +392,7 @@ def recent():
 
     entries = []
     for file_row in files:
-        file_id, filepath, vol_id, vol_title, vol_year, vol_cover, issue_num, calc_num = file_row
+        file_id, filepath, vol_id, vol_title, vol_year, issue_num, calc_num = file_row
         filename = basename(filepath)
 
         # Determine mimetype from extension
@@ -435,7 +415,7 @@ def recent():
             'content': filename,
             'href': f'{root_url}/download/{file_id}',
             'kind': 'acquisition',
-            'cover': _get_cover_url(vol_id, vol_cover, thumbnail=True) if vol_cover else None,
+            'cover': f'{root_url}/cover/{vol_id}',
             'mimetype': mimetype,
         }
         entries.append(entry)
@@ -509,7 +489,7 @@ def search():
 
     # Search by volume title or issue number
     files = cursor.execute("""
-        SELECT DISTINCT f.id, f.filepath, v.id, v.title, v.year, v.cover,
+        SELECT DISTINCT f.id, f.filepath, v.id, v.title, v.year,
                i.issue_number, i.calculated_issue_number
         FROM files f
         JOIN issues_files if ON f.id = if.file_id
@@ -522,7 +502,7 @@ def search():
 
     entries = []
     for file_row in files:
-        file_id, filepath, vol_id, vol_title, vol_year, vol_cover, issue_num, calc_num = file_row
+        file_id, filepath, vol_id, vol_title, vol_year, issue_num, calc_num = file_row
         filename = basename(filepath)
 
         # Determine mimetype from extension
@@ -545,7 +525,7 @@ def search():
             'content': filename,
             'href': f'{root_url}/download/{file_id}',
             'kind': 'acquisition',
-            'cover': _get_cover_url(vol_id, vol_cover, thumbnail=True) if vol_cover else None,
+            'cover': f'{root_url}/cover/{vol_id}',
             'mimetype': mimetype,
         }
         entries.append(entry)
@@ -573,67 +553,65 @@ def search():
     )
 
 
-@opds.route('/cover/<int:volume_id>/<size>')
-def cover_image(volume_id: int, size: str):
-    """Serve cover image for a volume, optionally as a thumbnail.
+@opds.route('/cover/<int:volume_id>')
+def cover_image(volume_id: int):
+    """Serve cover image for a volume from the database.
 
     Args:
         volume_id: The volume ID
-        size: 'full' or 'thumb' (320px width thumbnail)
     """
     if (error := _check_opds_access()):
         return error
 
-    if not HAS_PIL:
-        return Response(
-            "Cover thumbnails require Pillow library. Install with: pip install Pillow",
-            status=501  # Not Implemented
-        )
-
-    # Get volume cover URL from database
+    # Get volume cover from database
     cursor = get_db()
     result = cursor.execute(
-        "SELECT cover FROM volumes WHERE id = ?",
+        "SELECT cover FROM volumes_covers WHERE volume_id = ? LIMIT 1",
         (volume_id,)
     ).fetchone()
 
     if not result or not result[0]:
+        # No cover in database - return 404
         return Response("Cover not found", status=404)
 
-    cover_url = result[0]
+    cover_data = result[0]
 
     try:
-        # Fetch the cover image from ComicVine
-        response = requests.get(cover_url, timeout=10)
-        response.raise_for_status()
+        # Serve the cover image directly from database
+        cover_io = BytesIO(cover_data)
 
-        # Load image
-        img = Image.open(BytesIO(response.content))
+        # If PIL is available, we can optimize/convert the image
+        if HAS_PIL:
+            img = Image.open(cover_io)
 
-        # Convert to RGB if needed (for PNG with transparency)
-        if img.mode in ('RGBA', 'LA', 'P'):
-            background = Image.new('RGB', img.size, (255, 255, 255))
-            if img.mode == 'P':
-                img = img.convert('RGBA')
-            background.paste(img, mask=img.split()[-1] if img.mode == 'RGBA' else None)
-            img = background
+            # Convert to RGB if needed (for PNG with transparency)
+            if img.mode in ('RGBA', 'LA', 'P'):
+                background = Image.new('RGB', img.size, (255, 255, 255))
+                if img.mode == 'P':
+                    img = img.convert('RGBA')
+                background.paste(img, mask=img.split()[-1] if img.mode == 'RGBA' else None)
+                img = background
 
-        # Resize if thumbnail requested
-        if size == 'thumb':
-            # Thumbnail: max 320px width, maintain aspect ratio
-            img.thumbnail((320, 999999), Image.Resampling.LANCZOS)
+            # Save as JPEG for consistent format
+            output = BytesIO()
+            img.save(output, format='JPEG', quality=90, optimize=True)
+            output.seek(0)
 
-        # Save to bytes
-        output = BytesIO()
-        img.save(output, format='JPEG', quality=85, optimize=True)
-        output.seek(0)
-
-        return send_file(
-            output,
-            mimetype='image/jpeg',
-            as_attachment=False,
-            download_name=f'cover_{volume_id}.jpg'
-        )
+            return send_file(
+                output,
+                mimetype='image/jpeg',
+                as_attachment=False,
+                download_name=f'cover_{volume_id}.jpg'
+            )
+        else:
+            # Serve directly without conversion
+            cover_io.seek(0)
+            return send_file(
+                cover_io,
+                mimetype='image/jpeg',  # Assume JPEG
+                as_attachment=False,
+                download_name=f'cover_{volume_id}.jpg'
+            )
 
     except Exception as e:
         LOGGER.error(f'Error serving cover for volume {volume_id}: {e}')
