@@ -16,7 +16,13 @@ from urllib.parse import quote_plus
 
 import requests
 from flask import Blueprint, Response, render_template, request, send_file
-from PIL import Image
+
+# PIL is optional - only needed for thumbnail generation
+try:
+    from PIL import Image
+    HAS_PIL = True
+except ImportError:
+    HAS_PIL = False
 
 from backend.base.logging import LOGGER
 from backend.implementations.volumes import Library, Volume, Issue
@@ -115,19 +121,24 @@ def _get_opds_root() -> str:
     return f'{base_url}/opds'
 
 
-def _get_cover_url(volume_id: int, thumbnail: bool = False) -> str:
-    """Get the local OPDS cover URL for a volume.
+def _get_cover_url(volume_id: int, cover_url: str, thumbnail: bool = False) -> str:
+    """Get the cover URL for a volume.
 
     Args:
         volume_id: The volume ID
+        cover_url: The ComicVine cover URL (used as fallback if PIL unavailable)
         thumbnail: If True, return thumbnail URL (320px width), otherwise full size
 
     Returns:
-        The OPDS cover URL
+        The OPDS cover URL (local if PIL available, ComicVine URL otherwise)
     """
-    root = _get_opds_root()
-    size = 'thumb' if thumbnail else 'full'
-    return f'{root}/cover/{volume_id}/{size}'
+    if HAS_PIL and thumbnail:
+        root = _get_opds_root()
+        size = 'thumb' if thumbnail else 'full'
+        return f'{root}/cover/{volume_id}/{size}'
+    else:
+        # Fall back to ComicVine URL if PIL not available
+        return cover_url
 
 
 @opds.route('/')
@@ -240,7 +251,7 @@ def all_volumes():
             'content': f'{file_count} issues',
             'href': f'{root_url}/volume/{vol_id}',
             'kind': 'navigation',
-            'cover': _get_cover_url(vol_id, thumbnail=True) if cover else None,
+            'cover': _get_cover_url(vol_id, cover, thumbnail=True) if cover else None,
         }
         entries.append(entry)
     
@@ -336,7 +347,7 @@ def volume_issues(volume_id: int):
             'content': filename,
             'href': f'{root_url}/download/{file_id}',
             'kind': 'acquisition',
-            'cover': _get_cover_url(volume_id, thumbnail=True) if vol_cover else None,
+            'cover': _get_cover_url(volume_id, vol_cover, thumbnail=True) if vol_cover else None,
             'mimetype': mimetype,
         }
         entries.append(entry)
@@ -424,11 +435,11 @@ def recent():
             'content': filename,
             'href': f'{root_url}/download/{file_id}',
             'kind': 'acquisition',
-            'cover': _get_cover_url(vol_id, thumbnail=True) if vol_cover else None,
+            'cover': _get_cover_url(vol_id, vol_cover, thumbnail=True) if vol_cover else None,
             'mimetype': mimetype,
         }
         entries.append(entry)
-    
+
     return _render_feed(
         title='Kapowarr OPDS - Recent Additions',
         feed_id='kapowarr:recent',
@@ -534,7 +545,7 @@ def search():
             'content': filename,
             'href': f'{root_url}/download/{file_id}',
             'kind': 'acquisition',
-            'cover': _get_cover_url(vol_id, thumbnail=True) if vol_cover else None,
+            'cover': _get_cover_url(vol_id, vol_cover, thumbnail=True) if vol_cover else None,
             'mimetype': mimetype,
         }
         entries.append(entry)
@@ -572,6 +583,12 @@ def cover_image(volume_id: int, size: str):
     """
     if (error := _check_opds_access()):
         return error
+
+    if not HAS_PIL:
+        return Response(
+            "Cover thumbnails require Pillow library. Install with: pip install Pillow",
+            status=501  # Not Implemented
+        )
 
     # Get volume cover URL from database
     cursor = get_db()
