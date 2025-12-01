@@ -10,11 +10,13 @@ The matching criteria differ based on the type of volume. Kapowarr calls this th
 !!! info "What is a "Volume As Issue" volume?"
 	The "Volume As Issue" Special Version is for volumes where each issue is named "Volume N", where N is a number. An example of such a volume is [Reign of X](https://comicvine.gamespot.com/reign-of-x/4050-137265/). Issue 1 is named "Volume 1", issue 2 is named "Volume 2", etc.
 
-If a specific string is required, most common variations are also supported. For example, if the string 'one-shot' is required, the variations 'one shot' and 'os' are also allowed. And upper case or lower case does not matter. 
+If a specific string is required, most common variations are also supported. For example, if the string 'one-shot' is required, the variations 'one shot' and 'os' are also allowed. And upper case or lower case does not matter.  
 
 ## Files to Issues
 
 This covers how Kapowarr matches files to issues of a volume. Information is extracted from the filename, folder and parent folder.
+
+Kapowarr is tolerant of a number of common patterns and pieces of "noise" in filenames (such as month names or scan tags), as long as the underlying information about series, volume, year and issue number can still be recovered. If you encounter a filename that should obviously match but does not, please [report it](../other_docs/reporting.md).
 
 ### Normal Volume
 
@@ -100,6 +102,8 @@ When searching for a GC release, Kapowarr determines if the page is a match for 
 5. If it is for a hard cover or one shot, it has to follow the first rule they have for files.
 6. If it is for a TPB, it has to follow the first two rules it has for files.
 7. If not a special version, the issue number should match to an issue in the volume.
+
+For automatic searches, Kapowarr can additionally restrict which of these matching releases are used based on the [Allowed Formats](../settings/download.md#allowed-formats) setting. Manual search continues to show all matching releases, regardless of their file format.
 
 ## GetComics Groups
 

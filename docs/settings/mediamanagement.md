@@ -181,6 +181,8 @@ _Note: if Kapowarr determines that a file in the archive file is not related to 
 
 The formats that Kapowarr should convert the files to. It will try to convert the files to the format at place 1, but if that is not possible, it will fall back to the format at place 2, and so forth. The last place will always be occupied by the format 'No Conversion'. That means that if Kapowarr is not able to convert the file to any of the set formats, it will just keep the current one. If no format preference is set ('No Conversion' is at place 1), no conversion will happen. 
 
+Note that this setting only affects **conversion** after a file has been downloaded. If you want to restrict which file extensions are downloaded in the first place, see the [Allowed Formats](./download.md#allowed-formats) setting.
+
 ??? info "The format called 'folder'"
 	The format called 'folder' means extracting archive files containing images that directly cover a single issue. This is different from the ['Extract archives covering multiple issues' setting](#extract-archives-covering-multiple-issues). That setting will extract complete issue files from an archive file containing them. If you then add 'folder' to the format preference, it will extract any archive files coming out of the original archive file again. The format 'folder' will most likely lead to a folder with inside of it a series of image files. If you want to recreate the 'unzipping' feature from Kapowarr beta-3 and before, enable the before mentioned setting and do _not_ include 'folder' in the format preference. 
 

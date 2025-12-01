@@ -27,8 +27,16 @@ When a torrent has completed downloading, it will start to seed depending on the
 
 Whether Kapowarr should delete external downloads from their client once they have completed. Otherwise leave them in the queue of the external download client as 'completed'.
 
+### Allowed Formats
+
+By default, Kapowarr will accept any file format that matches a search result. With this setting you can restrict which file extensions are allowed when Kapowarr automatically grabs downloads (for example via "Search Monitored" or "Search All").
+
+Only search results whose filename ends in one of the selected formats (for example `cbr`, `cbz`, `pdf`, `epub`, `mobi`) are eligible to be added to the download queue. Leaving all options unchecked disables the filter and allows any format.
+
+This setting only affects which releases are **downloaded**; post-download conversion is still controlled separately by the [Format Preference](./mediamanagement.md#format-preference) setting.
+
 ## Service preference
 
 Kapowarr has the ability to download directly from the servers of GetComics, but also to download from services like MediaFire and Mega. When an issue is queried on [GetComics](https://getcomics.org/) and found to have multiple possible download sources, this defines which source takes priority. If the first download fails, Kapowarr will try the next service in order.
 
-If you have an account for one of these services (see [Credentials](./downloadclients.md#credentials) setting), you might want to put that one at the top, to make Kapowarr take advantage of the extra features that the account offers (extra bandwidth, higher rate limit, etc.).  
+If you have an account for one of these services (see [Credentials](./downloadclients.md#credentials) setting), you might want to put that one at the top, to make Kapowarr take advantage of the extra features that the account offers (extra bandwidth, higher rate limit, etc.).

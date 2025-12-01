@@ -53,11 +53,13 @@ If a volume is monitored, Kapowarr will try to automatically download media for 
 
 The button 'Search Monitored' will make Kapowarr try to download media for issues that aren't downloaded yet. This button only does something if the volume is monitored and at least one of it's monitored issues doesn't have a file yet. It will try to find a download for as many issues as possible, but it isn't guaranteed that it will always find a matching and working download.
 
+Automatic searches also respect the [Allowed Formats](../settings/download.md#allowed-formats) setting. If all available releases for an issue are in formats that are not allowed, Kapowarr will not download anything automatically for that issue, even if matching results exist.
+
 On the home page, the button 'Search All' will trigger a 'Search Monitored' for all monitored volumes. A search is done automatically every 24 hours by default, but you can also trigger it manually.
 
 ### Manual Search
 
-The button 'Manual Search' will show you a list of search results for the volume/issue. From these results, you can choose yourself which one Kapowarr will download. It is possible that the page does not contain any matching and working downloads. In that case, the download button will turn red and the page will be added to the blocklist.
+The button 'Manual Search' will show you a list of search results for the volume/issue. From these results, you can choose yourself which one Kapowarr will download. Manual search always shows all matching results, even if their format is not allowed for automatic searches. It is possible that the page does not contain any matching and working downloads. In that case, the download button will turn red and the page will be added to the blocklist.
 
 ### Download Queue and Post Processing
 

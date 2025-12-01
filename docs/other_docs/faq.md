@@ -99,4 +99,6 @@ There are multiple causes to this:
 
 4. The service or service category that the link links to is not supported. For example, Kapowarr can download from Mega, but it can't download Google Drive folders.
 
+5. All matching releases for the issue are in formats that are not allowed by the [Allowed Formats](../settings/download.md#allowed-formats) setting. In that case automatic searches will not download anything, even though the page itself works fine. You can either adjust the Allowed Formats to include that extension or use Manual Search (and, if needed, the "Force Download" button) to grab it anyway.
+
 If you still want to download the media, you can click the "Force Download" button in the Manual Search results to force Kapowarr to download all content from the page without any filtering.
