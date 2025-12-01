@@ -93,11 +93,15 @@ def match_volume_number(
     volume_data: VolumeData,
     volume_issues: List[IssueData],
     check_number: Union[Tuple[int, int], int, None],
-    conservative: bool = False
+    conservative: bool = False,
+    check_year: Union[int, None] = None
 ) -> bool:
     """Check whether the volume number matches the one of the volume or its year.
     If Special Version is VAI, then the volume number (or range) should match to
     an issue number in the volume.
+
+    Similar to Mylar3's approach: if no explicit volume is in the release name
+    but the year matches, consider it a match.
 
     Args:
         volume_data (VolumeData): The data of the volume.
@@ -111,6 +115,11 @@ def match_volume_number(
             play it safe and return `True`.
             Defaults to False.
 
+        check_year (Union[int, None], optional): The year from the search result.
+            If volume number doesn't match but year does, consider it a match
+            (like Mylar3 does).
+            Defaults to None.
+
     Returns:
         bool: Whether the volume numbers match.
     """
@@ -118,6 +127,11 @@ def match_volume_number(
         return conservative
 
     if check_number is None:
+        # No volume in release title - if year matches, consider it a match
+        # This is the Mylar3 approach for releases without explicit volume numbers
+        if check_year is not None and volume_data.year is not None:
+            if match_year(volume_data.year, check_year):
+                return True
         return conservative
 
     if isinstance(check_number, int):
@@ -125,6 +139,12 @@ def match_volume_number(
             return True
 
         if match_year(volume_data.year, check_number):
+            return True
+
+    # Volume numbers don't match, but year might match (Mylar3-style fallback)
+    # If the check_number is the default "1" and year matches, pass
+    if check_number == 1 and check_year is not None and volume_data.year is not None:
+        if match_year(volume_data.year, check_year):
             return True
 
     # Volume numbers don't match, but
@@ -437,7 +457,8 @@ def check_search_result_match(
         volume_data,
         volume_issues,
         result['volume_number'],
-        conservative=True
+        conservative=True,
+        check_year=result['year']
     ):
         return {'match': False, 'match_issue': "Volume numbers don't match"}
 
