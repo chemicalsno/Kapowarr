@@ -304,8 +304,10 @@ def volume_issues(volume_id: int):
     """, (volume_id,)).fetchall()
 
     entries = []
+    LOGGER.debug(f'OPDS: Found {len(files)} files for volume {volume_id}')
     for file_row in files:
         file_id, filepath, issue_num, calc_num, issue_date = file_row
+        LOGGER.debug(f'OPDS: Processing file_id={file_id}, issue_num={issue_num!r}, calc_num={calc_num}')
         filename = basename(filepath)
 
         # Determine mimetype from extension
@@ -330,6 +332,7 @@ def volume_issues(volume_id: int):
             'cover': f'{root_url}/cover/{volume_id}',
             'mimetype': mimetype,
         }
+        LOGGER.debug(f'OPDS: Entry created - title={entry["title"]!r}, href={entry["href"]}')
         entries.append(entry)
     
     # Pagination
