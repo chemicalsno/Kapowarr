@@ -106,7 +106,15 @@ def add_dl_to_blocklist(download: Download) -> None:
 # region Files
 def move_to_dest(download: Download) -> None:
     "Move file/fold from download folder to final destination"
+    if not download.files:
+        LOGGER.warning(f'Download {download.id} has no files to move')
+        return
+
     if not exists(download.files[0]):
+        LOGGER.warning(
+            f'Download file does not exist: {download.files[0]} - '
+            'Check Remote Path Mappings if using Docker'
+        )
         return
 
     folder = Volume(download.volume_id).vd.folder

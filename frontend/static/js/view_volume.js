@@ -346,6 +346,15 @@ function showManualSearch(api_key, issue_id=null) {
 					result.match_issue
 				);
 
+			// Age column
+			const ageCell = entry.querySelector('.age-column');
+			if (result.age !== null && result.age !== undefined) {
+				ageCell.innerText = result.age + 'd';
+				ageCell.title = result.age + ' days old';
+			} else {
+				ageCell.innerText = '-';
+			}
+
 			const title = entry.querySelector('a');
 			title.href = result.link;
 			title.innerText = result.display_title;

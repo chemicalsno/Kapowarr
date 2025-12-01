@@ -405,3 +405,20 @@ tbody .issue-title:hover {
 		display: none;
 	}
 }
+
+/* Manual search table */
+#search-result-table .age-column {
+	width: 4rem;
+	text-align: center;
+	white-space: nowrap;
+}
+
+#search-result-table .match-column {
+	width: 3rem;
+	text-align: center;
+}
+
+#search-result-table .source-column {
+	width: 5rem;
+	text-align: center;
+}

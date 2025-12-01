@@ -386,9 +386,15 @@ main > *:not(.tool-bar-container) {
 
 .page-turner > button {
 	padding: 0rem .75rem;
-	border: 3px solid var(--accent-color);
-	background-color: var(--accent-color);
-	color: var(--tool-bar-color);
+	border: 1px solid var(--border-color);
+	background-color: var(--foreground-color);
+	color: var(--text-color);
+	cursor: pointer;
+	transition: background-color 0.2s ease;
+}
+
+.page-turner > button:hover {
+	background-color: var(--hover-color);
 }
 
 #previous-page {
@@ -402,8 +408,10 @@ main > *:not(.tool-bar-container) {
 }
 
 #page-number {
-	border-block: 3px solid var(--accent-color);
+	border-block: 1px solid var(--border-color);
+	border-inline: none;
 	padding: .5rem .75rem;
+	background-color: var(--foreground-color);
 }
 
 /*  */
