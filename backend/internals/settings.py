@@ -12,8 +12,7 @@ from backend.base.custom_exceptions import (FolderNotFound, InvalidKeyValue,
                                             InvalidSettingModification,
                                             KeyNotFound)
 from backend.base.definitions import (BaseEnum, Constants, DateType,
-                                      GCDownloadSource, PreferredFormat,
-                                      SeedingHandling)
+                                      GCDownloadSource, SeedingHandling)
 from backend.base.files import (are_folders_colliding, folder_path,
                                 uppercase_drive_letter)
 from backend.base.helpers import (CommaList, Singleton, force_suffix,
@@ -80,7 +79,7 @@ class PublicSettingsValues:
     convert: bool = False
     extract_issue_ranges: bool = False
     format_preference: CommaList = field(default_factory=lambda: CommaList(''))
-    preferred_format: PreferredFormat = PreferredFormat.ANY
+    allowed_formats: CommaList = field(default_factory=lambda: CommaList(''))
 
     service_preference: CommaList = field(default_factory=lambda: CommaList(
         (s.value for s in GCDownloadSource._member_map_.values())

@@ -12,7 +12,11 @@ function fillSettings(api_key) {
 		document.querySelector('#download-timeout-input').value = ((json.result.failing_download_timeout || 0) / 60) || '';
 		document.querySelector('#seeding-handling-input').value = json.result.seeding_handling;
 		document.querySelector('#delete-downloads-input').checked = json.result.delete_completed_downloads;
-		document.querySelector('#preferred-format-input').value = json.result.preferred_format;
+		// Set allowed formats checkboxes
+		const allowedFormats = json.result.allowed_formats || [];
+		document.querySelectorAll('#allowed-formats-group input[type="checkbox"]').forEach(cb => {
+			cb.checked = allowedFormats.includes(cb.value);
+		});
 		initPrefList(json.result.service_preference);
 	});
 };
@@ -20,13 +24,17 @@ function fillSettings(api_key) {
 function saveSettings(api_key) {
 	document.querySelector("#save-button p").innerText = 'Saving';
 	document.querySelector('#download-folder-input').classList.remove('error-input');
+	// Collect checked format checkboxes
+	const allowedFormats = Array.from(
+		document.querySelectorAll('#allowed-formats-group input[type="checkbox"]:checked')
+	).map(cb => cb.value);
 	const data = {
 		'download_folder': document.querySelector('#download-folder-input').value,
 		'concurrent_direct_downloads': parseInt(document.querySelector('#concurrent-direct-downloads-input').value),
 		'failing_download_timeout': parseInt(document.querySelector('#download-timeout-input').value || 0) * 60,
 		'seeding_handling': document.querySelector('#seeding-handling-input').value,
 		'delete_completed_downloads': document.querySelector('#delete-downloads-input').checked,
-		'preferred_format': document.querySelector('#preferred-format-input').value,
+		'allowed_formats': allowedFormats,
 		'service_preference': getServicePreference()
 	};
 	sendAPI('PUT', '/settings', api_key, {}, data)

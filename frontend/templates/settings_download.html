@@ -71,14 +71,16 @@
 						</td>
 					</tr>
 					<tr>
-						<th><label for="preferred-format-input">Preferred Format</label></th>
+						<th><label>Allowed Formats</label></th>
 						<td>
-							<select id="preferred-format-input">
-								<option value="any">Any</option>
-								<option value="cbr">CBR only</option>
-								<option value="cbz">CBZ only</option>
-							</select>
-							<p>Only auto-download files matching this format. Manual downloads are not affected.</p>
+							<div class="checkbox-group" id="allowed-formats-group">
+								<label><input type="checkbox" value="cbr"> CBR</label>
+								<label><input type="checkbox" value="cbz"> CBZ</label>
+								<label><input type="checkbox" value="pdf"> PDF</label>
+								<label><input type="checkbox" value="epub"> EPUB</label>
+								<label><input type="checkbox" value="mobi"> MOBI</label>
+							</div>
+							<p>Only auto-download files matching these formats. Leave all unchecked to allow any format.</p>
 						</td>
 					</tr>
 				</tbody>

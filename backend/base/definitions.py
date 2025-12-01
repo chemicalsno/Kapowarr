@@ -290,19 +290,6 @@ class DateType(BaseEnum):
     STORE_DATE = "store_date"
 
 
-class PreferredFormat(BaseEnum):
-    "Preferred file format for downloads (like Mylar's PREFERRED_QUALITY)"
-
-    ANY = "any"
-    "Accept any file format"
-
-    CBR = "cbr"
-    "Prefer CBR files only"
-
-    CBZ = "cbz"
-    "Prefer CBZ files only"
-
-
 class GeneralFileType(BaseEnum):
     METADATA = "metadata"
     COVER = "cover"

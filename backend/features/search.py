@@ -5,8 +5,8 @@ from typing import Dict, List, Tuple, Union
 
 from backend.base.definitions import (Constants, GCDownloadSource,
                                       QUERY_FORMATS, MatchedSearchResultData,
-                                      PreferredFormat, SearchResultData,
-                                      SearchSource, SpecialVersion)
+                                      SearchResultData, SearchSource,
+                                      SpecialVersion)
 from backend.base.helpers import (AsyncSession, check_overlapping_issues,
                                   extract_year_from_date, force_range,
                                   get_subclasses)
@@ -25,29 +25,29 @@ SOURCE_TO_DOWNLOAD_SOURCE = {
 }
 
 
-def _matches_preferred_format(result: SearchResultData) -> bool:
-    """Check if a search result matches the user's preferred format setting.
+def _matches_allowed_formats(result: SearchResultData) -> bool:
+    """Check if a search result matches the user's allowed formats setting.
 
     Args:
         result: A search result containing display_title.
 
     Returns:
-        True if the result matches the preferred format, False otherwise.
+        True if the result matches an allowed format (or no filter set), False otherwise.
     """
-    preferred = Settings().sv.preferred_format
+    allowed = Settings().sv.allowed_formats
 
-    # If set to ANY, accept all formats
-    if preferred == PreferredFormat.ANY:
+    # If empty, allow all formats
+    if not allowed:
         return True
 
-    # Check if the display_title contains the preferred extension
+    # Check if the display_title contains any of the allowed extensions
     title_lower = result['display_title'].lower()
-    if preferred == PreferredFormat.CBR:
-        return '.cbr' in title_lower or 'cbr' in title_lower.split()[-1] if title_lower else False
-    elif preferred == PreferredFormat.CBZ:
-        return '.cbz' in title_lower or 'cbz' in title_lower.split()[-1] if title_lower else False
+    for fmt in allowed:
+        fmt_lower = fmt.lower().strip('.')
+        if f'.{fmt_lower}' in title_lower or title_lower.endswith(fmt_lower):
+            return True
 
-    return True
+    return False
 
 
 def _rank_search_result(
@@ -395,7 +395,7 @@ def auto_search(
     search_results = [
         r
         for r in manual_search(volume_id, issue_id)
-        if r['match'] and _matches_preferred_format(r)
+        if r['match'] and _matches_allowed_formats(r)
     ]
 
     if issue_id is not None or (
