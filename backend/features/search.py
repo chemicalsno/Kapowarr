@@ -28,6 +28,11 @@ SOURCE_TO_DOWNLOAD_SOURCE = {
 def _matches_allowed_formats(result: SearchResultData) -> bool:
     """Check if a search result matches the user's allowed formats setting.
 
+    This filter works differently for different sources:
+    - GetComics/Direct downloads: Filter by file extension in URL/title
+    - Usenet/NZB: Cannot filter pre-download (format not in title)
+      Use NZBHydra2 categories instead, or validate post-download
+
     Args:
         result: A search result containing display_title.
 
@@ -40,12 +45,17 @@ def _matches_allowed_formats(result: SearchResultData) -> bool:
     if not allowed:
         return True
 
-    # For Usenet sources, NZB titles often don't include file extensions
-    # Allow all Usenet results since we can't reliably determine format from title
+    # For Usenet sources, NZB titles rarely include file extensions.
+    # The actual comic format isn't known until after download.
+    # Users should use NZBHydra2 categories (7030=Comics) for filtering instead.
+    #
+    # Rationale: Sonarr/Radarr handle this the same way - no pre-download
+    # format filtering for Usenet, only category-based filtering at indexer level.
     if result.get('source') in ('Usenet', 'NZBHydra2'):
         return True
 
-    # Check if the display_title contains any of the allowed extensions
+    # For GetComics and other direct download sources, check the URL/title
+    # for file extensions since they're usually included
     title_lower = result['display_title'].lower()
     for fmt in allowed:
         fmt_lower = fmt.lower().strip('.')
