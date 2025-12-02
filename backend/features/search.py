@@ -210,6 +210,60 @@ def _get_enabled_search_sources() -> list:
     return enabled_sources
 
 
+def _build_hydra_issue_queries(
+    title: str,
+    volume_number: int,
+    year: Union[int, None],
+    issue_number: str
+) -> Tuple[str, ...]:
+    """Build Hydra-friendly queries for an issue search.
+
+    Uses common Usenet naming patterns like "Title 2011 003" and
+    "Title v5 003" to better match how releases are indexed.
+    """
+    try:
+        # Issue numbers are stored as strings; normalise to an int for
+        # building zero-padded variants (003, 03, 3).
+        issue_int = int(float(issue_number))
+    except (TypeError, ValueError):
+        return tuple()
+
+    issue_basic = str(issue_int)
+    issue_two = f"{issue_int:02d}"
+    issue_three = f"{issue_int:03d}"
+
+    queries: List[str] = []
+
+    # Year-specific queries
+    if year is not None:
+        queries.append(f"{title} {year} {issue_three}")
+        queries.append(f"{title} {year} {issue_two}")
+        queries.append(f"{title} {year} {issue_basic}")
+
+    # Volume-specific queries
+    queries.append(f"{title} v{volume_number} {issue_three}")
+    queries.append(f"{title} v{volume_number} {issue_two}")
+    queries.append(f"{title} v{volume_number} {issue_basic}")
+
+    # Generic issue queries without year/volume
+    queries.append(f"{title} {issue_three}")
+    queries.append(f"{title} {issue_two}")
+    queries.append(f"{title} {issue_basic}")
+
+    # Keep a broad title-only query as final fallback for staging
+    queries.append(title)
+
+    # Deduplicate while preserving order
+    seen = set()
+    deduped: List[str] = []
+    for q in queries:
+        if q not in seen:
+            deduped.append(q)
+            seen.add(q)
+
+    return tuple(deduped)
+
+
 async def _search_queries_for_sources(
     queries: Tuple[str, ...],
     sources: List[SearchSource.__class__]
@@ -357,16 +411,38 @@ def manual_search(
                 other_sources
             )))
 
-        # For Hydra/Usenet, stage queries: first run everything except the
-        # broad title-only query; only if that yields nothing do we run the
-        # "{title}" query. This reduces noise and reliance on Hydra's
-        # top-N result cap for very broad series searches.
+        # For Hydra/Usenet, stage queries: first run specific, Hydra-friendly
+        # issue queries; only if that yields nothing do we run the broad
+        # "{title}" query. This reduces noise and reliance on Hydra's top-N
+        # result cap for very broad series searches.
         if hydra_sources:
-            if len(all_queries) > 1:
-                staged_queries = all_queries[:-1]
-                title_only = (all_queries[-1],)
+            hydra_queries: Tuple[str, ...] = all_queries
+
+            if (
+                issue_number is not None
+                and volume_data.special_version in (
+                    SpecialVersion.NORMAL,
+                    SpecialVersion.VOLUME_AS_ISSUE
+                )
+            ):
+                hydra_issue_queries = _build_hydra_issue_queries(
+                    search_title,
+                    volume_data.volume_number,
+                    volume_data.year,
+                    issue_number
+                )
+                if hydra_issue_queries:
+                    LOGGER.debug(
+                        "Using Hydra-specific issue queries: %s",
+                        hydra_issue_queries
+                    )
+                    hydra_queries = hydra_issue_queries
+
+            if len(hydra_queries) > 1:
+                staged_queries = hydra_queries[:-1]
+                title_only = (hydra_queries[-1],)
             else:
-                staged_queries = all_queries
+                staged_queries = hydra_queries
                 title_only = tuple()
 
             hydra_results = run(_search_queries_for_sources(
