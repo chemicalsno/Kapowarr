@@ -210,28 +210,38 @@ def _get_enabled_search_sources() -> list:
     return enabled_sources
 
 
-async def search_multiple_queries(*queries: str) -> List[SearchResultData]:
-    """Do a manual search for multiple queries asynchronously.
-
-    Returns:
-        List[SearchResultData]: The search results for all queries together,
-        duplicates removed.
+async def _search_queries_for_sources(
+    queries: Tuple[str, ...],
+    sources: List[SearchSource.__class__]
+) -> List[SearchResultData]:
+    """Run a set of queries against a specific list of sources.
+    
+    This helper allows us to stage queries per source type (e.g. Hydra) while
+    still sharing the same deduplication logic.
     """
-    enabled_sources = _get_enabled_search_sources()
-    LOGGER.debug(f"Running search for queries: {queries}")
-    LOGGER.debug(f"Search will use {len(enabled_sources)} source(s): "
-                 f"{[s.source_name for s in enabled_sources]}")
+    if not sources or not queries:
+        return []
+    
+    LOGGER.debug(
+        "Running search for queries %s on sources: %s",
+        queries,
+        [s.source_name for s in sources]
+    )
     
     async with AsyncSession() as session:
         searches = [
             Source(query).search(session)
-            for Source in enabled_sources
+            for Source in sources
             for query in queries
         ]
         LOGGER.debug(f"Executing {len(searches)} search task(s)")
         responses = await gather(*searches)
-
-    LOGGER.debug(f"All searches complete, processing {len(responses)} response(s)")
+    
+    LOGGER.debug(
+        "All searches complete for sources %s, processing %d response(s)",
+        [s.source_name for s in sources],
+        len(responses)
+    )
     search_results: List[SearchResultData] = []
     processed_links = set()
     for response in responses:
@@ -241,25 +251,24 @@ async def search_multiple_queries(*queries: str) -> List[SearchResultData]:
             if result['link'] not in processed_links:
                 search_results.append(result)
                 processed_links.add(result['link'])
-
+    
     return search_results
+
+
+async def search_multiple_queries(*queries: str) -> List[SearchResultData]:
+    """Do a manual search for multiple queries across all enabled sources.
+
+    This is the non-staged variant used by older code paths. New staged logic
+    in ``manual_search`` uses ``_search_queries_for_sources`` directly.
+    """
+    enabled_sources = _get_enabled_search_sources()
+    return await _search_queries_for_sources(tuple(queries), enabled_sources)
 
 
 def manual_search(
     volume_id: int,
     issue_id: Union[int, None] = None
-) -> List[MatchedSearchResultData]:
-    """Do a manual search for a volume or issue.
-
-    Args:
-        volume_id (int): The id of the volume to search for.
-        issue_id (Union[int, None], optional): The id of the issue to search for,
-        in the case that you want to search for an issue instead of a volume.
-            Defaults to None.
-
-    Returns:
-        List[MatchedSearchResultData]: List with search results.
-    """
+):
     volume = Volume(volume_id)
     volume_data = volume.get_data()
     volume_issues = volume.get_issues()
@@ -307,14 +316,81 @@ def manual_search(
             )
 
         search_title = title.replace(':', '')
-        search_results = run(search_multiple_queries(*(
+        # Build all query strings for this title
+        all_queries: Tuple[str, ...] = tuple(
             format.format(
-                title=search_title, volume_number=volume_data.volume_number,
-                year=volume_data.year, issue_number=issue_number
+                title=search_title,
+                volume_number=volume_data.volume_number,
+                year=volume_data.year,
+                issue_number=issue_number
             )
             for format in formats
-        )))
-        if not search_results:
+        )
+
+        # Determine which sources are enabled so we can stage Hydra/Usenet
+        enabled_sources = _get_enabled_search_sources()
+        gc_sources = [
+            s for s in enabled_sources
+            if s.source_name == SearchGetComics.source_name
+        ]
+        hydra_sources = [
+            s for s in enabled_sources
+            if issubclass(s, HydraSearchSource)
+        ]
+        other_sources = [
+            s for s in enabled_sources
+            if s not in gc_sources + hydra_sources
+        ]
+
+        # Always run all formats for GetComics and any non-Hydra/non-GC
+        # sources. This keeps GC behaviour unchanged and avoids surprises for
+        # other providers.
+        search_results: List[SearchResultData] = []
+        if gc_sources:
+            search_results.extend(run(_search_queries_for_sources(
+                all_queries,
+                gc_sources
+            )))
+        if other_sources:
+            search_results.extend(run(_search_queries_for_sources(
+                all_queries,
+                other_sources
+            )))
+
+        # For Hydra/Usenet, stage queries: first run everything except the
+        # broad title-only query; only if that yields nothing do we run the
+        # "{title}" query. This reduces noise and reliance on Hydra's
+        # top-N result cap for very broad series searches.
+        if hydra_sources:
+            if len(all_queries) > 1:
+                staged_queries = all_queries[:-1]
+                title_only = (all_queries[-1],)
+            else:
+                staged_queries = all_queries
+                title_only = tuple()
+
+            hydra_results = run(_search_queries_for_sources(
+                staged_queries,
+                hydra_sources
+            )) if staged_queries else []
+
+            if not hydra_results and title_only:
+                hydra_results = run(_search_queries_for_sources(
+                    title_only,
+                    hydra_sources
+                ))
+
+            search_results.extend(hydra_results)
+
+        # Deduplicate combined results by link, as search_multiple_queries did
+        deduped_results: List[SearchResultData] = []
+        seen_links = set()
+        for r in search_results:
+            if r['link'] not in seen_links:
+                deduped_results.append(r)
+                seen_links.add(r['link'])
+
+        if not deduped_results:
             continue
 
         results: List[MatchedSearchResultData] = [
