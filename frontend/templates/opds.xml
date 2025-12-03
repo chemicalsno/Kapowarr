@@ -30,6 +30,7 @@
       href="{{ entry.href }}"
       rel="http://opds-spec.org/acquisition"
       type="{{ entry.mimetype if entry.mimetype else 'application/octet-stream' }}"
+      {% if entry.size %}length="{{ entry.size }}"{% endif %}
     />
     {% else %}
     <link

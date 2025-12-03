@@ -34,11 +34,27 @@ opds = Blueprint('opds', __name__, url_prefix='/opds')
 
 PAGE_SIZE = 50
 
+# MIME type mapping for comic file extensions
+COMIC_MIMETYPES = {
+    '.cbz': 'application/x-cbz',
+    '.cbr': 'application/x-cbr',
+    '.pdf': 'application/pdf',
+    '.epub': 'application/epub+zip',
+}
+
 
 def _check_opds_access() -> Union[Response, None]:
-    """Check if OPDS is enabled and user is authenticated."""
+    """Check if OPDS is enabled and user is authenticated.
+
+    Authentication fallback behavior:
+        If opds_password is not set but authentication is enabled, the API key
+        is used as the password (similar to Mylar3's behavior). This allows OPDS
+        to work with existing API credentials but could be a security concern if
+        the API key is used elsewhere. It's recommended to set an explicit OPDS
+        password in Settings > General > OPDS Authentication if security is a concern.
+    """
     settings = Settings().sv
-    
+
     # Check if OPDS is enabled
     if not settings.opds_enabled:
         return Response(
@@ -47,7 +63,7 @@ def _check_opds_access() -> Union[Response, None]:
             status=403,
             mimetype='application/xml'
         )
-    
+
     # Check authentication if enabled
     if settings.opds_authentication:
         auth_header = request.headers.get('Authorization')
@@ -98,6 +114,37 @@ def _make_link(href: str, type: str, rel: str, title: str = None) -> Dict[str, s
     return link
 
 
+def _get_mimetype(filename: str) -> str:
+    """Get MIME type for a comic file based on extension.
+
+    Args:
+        filename: The filename to check
+
+    Returns:
+        MIME type string, defaults to 'application/octet-stream' if unknown
+    """
+    ext = splitext(filename)[1].lower()
+    return COMIC_MIMETYPES.get(ext, 'application/octet-stream')
+
+
+def _format_issue_number(issue_num: Any, calc_num: Any) -> str:
+    """Format issue number for display, handling None/missing values.
+
+    Args:
+        issue_num: The issue number (can be None, 0, or string)
+        calc_num: The calculated issue number (can be None or float)
+
+    Returns:
+        Formatted issue string like "#1" or "Issue 1.5" or "Issue (Unknown)"
+    """
+    if issue_num:
+        return f"#{issue_num}"
+    elif calc_num is not None:
+        return f"Issue {calc_num}"
+    else:
+        return "Issue (Unknown)"
+
+
 def _render_feed(title: str, feed_id: str, links: List[Dict], entries: List[Dict]) -> Response:
     """Render an OPDS Atom feed."""
     xml = render_template(
@@ -121,7 +168,27 @@ def _get_opds_root() -> str:
     return f'{base_url}/opds'
 
 
+def _handle_opds_error(f):
+    """Decorator to handle errors in OPDS endpoints gracefully."""
+    from functools import wraps
+
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        try:
+            return f(*args, **kwargs)
+        except Exception as e:
+            LOGGER.exception(f"OPDS error in {f.__name__}: ")
+            return Response(
+                '<?xml version="1.0" encoding="UTF-8"?>'
+                '<error>Server error. Please check server logs.</error>',
+                status=500,
+                mimetype='application/xml'
+            )
+    return wrapper
+
+
 @opds.route('/')
+@_handle_opds_error
 def root():
     """Root OPDS catalog - navigation feed."""
     if (error := _check_opds_access()):
@@ -185,6 +252,7 @@ def root():
 
 
 @opds.route('/volumes')
+@_handle_opds_error
 def all_volumes():
     """List all volumes with downloaded files."""
     if (error := _check_opds_access()):
@@ -206,8 +274,19 @@ def all_volumes():
         ),
     ]
     
-    # Get volumes that have files
+    # Get volumes that have files - use LIMIT/OFFSET for efficient pagination
     cursor = get_db()
+
+    # Get total count for pagination
+    total = cursor.execute("""
+        SELECT COUNT(DISTINCT v.id)
+        FROM volumes v
+        JOIN issues i ON i.volume_id = v.id
+        JOIN issues_files if ON if.issue_id = i.id
+        JOIN files f ON f.id = if.file_id
+    """).fetchone()[0]
+
+    # Get paginated volumes
     volumes = cursor.execute("""
         SELECT DISTINCT v.id, v.title, v.year,
                COUNT(DISTINCT f.id) as file_count
@@ -217,7 +296,8 @@ def all_volumes():
         JOIN files f ON f.id = if.file_id
         GROUP BY v.id
         ORDER BY v.title
-    """).fetchall()
+        LIMIT ? OFFSET ?
+    """, (PAGE_SIZE, index)).fetchall()
 
     entries = []
     for vol in volumes:
@@ -234,9 +314,8 @@ def all_volumes():
             'cover': f'{root_url}/cover/{vol_id}',
         }
         entries.append(entry)
-    
-    # Pagination
-    total = len(entries)
+
+    # Pagination links
     if total > index + PAGE_SIZE:
         links.append(_make_link(
             href=f'{root_url}/volumes?index={index + PAGE_SIZE}',
@@ -254,11 +333,12 @@ def all_volumes():
         title='Kapowarr OPDS - All Volumes',
         feed_id='kapowarr:volumes',
         links=links,
-        entries=entries[index:index + PAGE_SIZE]
+        entries=entries  # Already paginated by SQL
     )
 
 
 @opds.route('/volume/<int:volume_id>')
+@_handle_opds_error
 def volume_issues(volume_id: int):
     """List issues in a volume - acquisition feed."""
     if (error := _check_opds_access()):
@@ -295,7 +375,7 @@ def volume_issues(volume_id: int):
     
     # Get files for this volume
     files = cursor.execute("""
-        SELECT f.id, f.filepath, i.issue_number, i.calculated_issue_number, i.date
+        SELECT f.id, f.filepath, f.size, i.issue_number, i.calculated_issue_number, i.date
         FROM files f
         JOIN issues_files if ON f.id = if.file_id
         JOIN issues i ON if.issue_id = i.id
@@ -306,21 +386,15 @@ def volume_issues(volume_id: int):
     entries = []
     LOGGER.debug(f'OPDS: Found {len(files)} files for volume {volume_id}')
     for file_row in files:
-        file_id, filepath, issue_num, calc_num, issue_date = file_row
+        file_id, filepath, file_size, issue_num, calc_num, issue_date = file_row
         LOGGER.debug(f'OPDS: Processing file_id={file_id}, issue_num={issue_num!r}, calc_num={calc_num}')
         filename = basename(filepath)
 
         # Determine mimetype from extension
-        ext = splitext(filename)[1].lower()
-        mimetypes_map = {
-            '.cbz': 'application/x-cbz',
-            '.cbr': 'application/x-cbr',
-            '.pdf': 'application/pdf',
-            '.epub': 'application/epub+zip',
-        }
-        mimetype = mimetypes_map.get(ext, 'application/octet-stream')
+        mimetype = _get_mimetype(filename)
 
-        issue_title = f"#{issue_num}" if issue_num else f"Issue {calc_num}"
+        # Format issue number
+        issue_title = _format_issue_number(issue_num, calc_num)
 
         entry = {
             'title': f"{vol_title} {issue_title}",
@@ -331,6 +405,7 @@ def volume_issues(volume_id: int):
             'kind': 'acquisition',
             'cover': f'{root_url}/cover/{volume_id}',
             'mimetype': mimetype,
+            'size': file_size or 0,  # File size in bytes
         }
         LOGGER.debug(f'OPDS: Entry created - title={entry["title"]!r}, href={entry["href"]}')
         entries.append(entry)
@@ -359,6 +434,7 @@ def volume_issues(volume_id: int):
 
 
 @opds.route('/recent')
+@_handle_opds_error
 def recent():
     """Recently added issues - acquisition feed."""
     if (error := _check_opds_access()):
@@ -380,36 +456,40 @@ def recent():
         ),
     ]
     
-    # Get recent files
+    # Get recent files - use LIMIT/OFFSET for efficient pagination
     cursor = get_db()
+
+    # Get total count for pagination
+    total = cursor.execute("""
+        SELECT COUNT(DISTINCT f.id)
+        FROM files f
+        JOIN issues_files if ON f.id = if.file_id
+        JOIN issues i ON if.issue_id = i.id
+        JOIN volumes v ON i.volume_id = v.id
+    """).fetchone()[0]
+
+    # Get paginated files
     files = cursor.execute("""
-        SELECT f.id, f.filepath, v.id, v.title, v.year,
+        SELECT f.id, f.filepath, f.size, v.id, v.title, v.year,
                i.issue_number, i.calculated_issue_number
         FROM files f
         JOIN issues_files if ON f.id = if.file_id
         JOIN issues i ON if.issue_id = i.id
         JOIN volumes v ON i.volume_id = v.id
         ORDER BY f.id DESC
-        LIMIT 100
-    """).fetchall()
+        LIMIT ? OFFSET ?
+    """, (PAGE_SIZE, index)).fetchall()
 
     entries = []
     for file_row in files:
-        file_id, filepath, vol_id, vol_title, vol_year, issue_num, calc_num = file_row
+        file_id, filepath, file_size, vol_id, vol_title, vol_year, issue_num, calc_num = file_row
         filename = basename(filepath)
 
         # Determine mimetype from extension
-        ext = splitext(filename)[1].lower()
-        mimetypes_map = {
-            '.cbz': 'application/x-cbz',
-            '.cbr': 'application/x-cbr',
-            '.pdf': 'application/pdf',
-            '.epub': 'application/epub+zip',
-        }
-        mimetype = mimetypes_map.get(ext, 'application/octet-stream')
+        mimetype = _get_mimetype(filename)
 
         display_title = f"{vol_title} ({vol_year})" if vol_year else vol_title
-        issue_title = f"#{issue_num}" if issue_num else f"Issue {calc_num}"
+        issue_title = _format_issue_number(issue_num, calc_num)
 
         entry = {
             'title': f"{display_title} {issue_title}",
@@ -420,18 +500,34 @@ def recent():
             'kind': 'acquisition',
             'cover': f'{root_url}/cover/{vol_id}',
             'mimetype': mimetype,
+            'size': file_size or 0,  # File size in bytes
         }
         entries.append(entry)
+
+    # Pagination links (was missing before - Issue #1)
+    if total > index + PAGE_SIZE:
+        links.append(_make_link(
+            href=f'{root_url}/recent?index={index + PAGE_SIZE}',
+            type='application/atom+xml; profile=opds-catalog; kind=acquisition',
+            rel='next'
+        ))
+    if index >= PAGE_SIZE:
+        links.append(_make_link(
+            href=f'{root_url}/recent?index={index - PAGE_SIZE}',
+            type='application/atom+xml; profile=opds-catalog; kind=acquisition',
+            rel='previous'
+        ))
 
     return _render_feed(
         title='Kapowarr OPDS - Recent Additions',
         feed_id='kapowarr:recent',
         links=links,
-        entries=entries[index:index + PAGE_SIZE]
+        entries=entries  # Already paginated by SQL
     )
 
 
 @opds.route('/opensearch.xml')
+@_handle_opds_error
 def opensearch_descriptor():
     """OpenSearch descriptor for OPDS search."""
     if (error := _check_opds_access()):
@@ -448,6 +544,7 @@ def opensearch_descriptor():
 
 
 @opds.route('/search')
+@_handle_opds_error
 def search():
     """Search for comics - acquisition feed."""
     if (error := _check_opds_access()):
@@ -486,13 +583,23 @@ def search():
         ),
     ]
 
-    # Search volumes and issues
+    # Search volumes and issues - use LIMIT/OFFSET for efficient pagination
     cursor = get_db()
     search_pattern = f'%{query}%'
 
-    # Search by volume title or issue number
+    # Get total count for pagination
+    total = cursor.execute("""
+        SELECT COUNT(DISTINCT f.id)
+        FROM files f
+        JOIN issues_files if ON f.id = if.file_id
+        JOIN issues i ON if.issue_id = i.id
+        JOIN volumes v ON i.volume_id = v.id
+        WHERE v.title LIKE ? OR i.issue_number LIKE ?
+    """, (search_pattern, search_pattern)).fetchone()[0]
+
+    # Search by volume title or issue number with pagination
     files = cursor.execute("""
-        SELECT DISTINCT f.id, f.filepath, v.id, v.title, v.year,
+        SELECT DISTINCT f.id, f.filepath, f.size, v.id, v.title, v.year,
                i.issue_number, i.calculated_issue_number
         FROM files f
         JOIN issues_files if ON f.id = if.file_id
@@ -500,26 +607,19 @@ def search():
         JOIN volumes v ON i.volume_id = v.id
         WHERE v.title LIKE ? OR i.issue_number LIKE ?
         ORDER BY v.title, i.calculated_issue_number
-        LIMIT 100
-    """, (search_pattern, search_pattern)).fetchall()
+        LIMIT ? OFFSET ?
+    """, (search_pattern, search_pattern, PAGE_SIZE, index)).fetchall()
 
     entries = []
     for file_row in files:
-        file_id, filepath, vol_id, vol_title, vol_year, issue_num, calc_num = file_row
+        file_id, filepath, file_size, vol_id, vol_title, vol_year, issue_num, calc_num = file_row
         filename = basename(filepath)
 
         # Determine mimetype from extension
-        ext = splitext(filename)[1].lower()
-        mimetypes_map = {
-            '.cbz': 'application/x-cbz',
-            '.cbr': 'application/x-cbr',
-            '.pdf': 'application/pdf',
-            '.epub': 'application/epub+zip',
-        }
-        mimetype = mimetypes_map.get(ext, 'application/octet-stream')
+        mimetype = _get_mimetype(filename)
 
         display_title = f"{vol_title} ({vol_year})" if vol_year else vol_title
-        issue_title = f"#{issue_num}" if issue_num else f"Issue {calc_num}"
+        issue_title = _format_issue_number(issue_num, calc_num)
 
         entry = {
             'title': f"{display_title} {issue_title}",
@@ -530,11 +630,11 @@ def search():
             'kind': 'acquisition',
             'cover': f'{root_url}/cover/{vol_id}',
             'mimetype': mimetype,
+            'size': file_size or 0,  # File size in bytes
         }
         entries.append(entry)
 
-    # Pagination
-    total = len(entries)
+    # Pagination links
     if total > index + PAGE_SIZE:
         links.append(_make_link(
             href=f'{root_url}/search?query={quote_plus(query)}&index={index + PAGE_SIZE}',
@@ -552,11 +652,12 @@ def search():
         title=f'Kapowarr OPDS - Search: {query}',
         feed_id=f'kapowarr:search:{query}',
         links=links,
-        entries=entries[index:index + PAGE_SIZE]
+        entries=entries  # Already paginated by SQL
     )
 
 
 @opds.route('/cover/<int:volume_id>')
+@_handle_opds_error
 def cover_image(volume_id: int):
     """Serve cover image for a volume from the database.
 
@@ -625,6 +726,7 @@ def cover_image(volume_id: int):
 
 
 @opds.route('/download/<int:file_id>')
+@_handle_opds_error
 def download_file(file_id: int):
     """Download a comic file."""
     if (error := _check_opds_access()):
@@ -652,14 +754,7 @@ def download_file(file_id: int):
     filename = basename(filepath)
 
     # Determine mimetype
-    ext = splitext(filename)[1].lower()
-    mimetypes = {
-        '.cbz': 'application/x-cbz',
-        '.cbr': 'application/x-cbr',
-        '.pdf': 'application/pdf',
-        '.epub': 'application/epub+zip',
-    }
-    mimetype = mimetypes.get(ext, 'application/octet-stream')
+    mimetype = _get_mimetype(filename)
 
     LOGGER.info(f'OPDS: Serving {filename} ({mimetype}) from {filepath}')
 
