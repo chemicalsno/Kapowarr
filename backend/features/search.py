@@ -511,7 +511,7 @@ def manual_search(
                     number_to_year, calculated_issue_number
                 )
             }
-            for result in search_results
+            for result in deduped_results  # Use deduplicated results
         ]
 
         # Sort results; put best result at top

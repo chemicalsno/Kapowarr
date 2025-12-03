@@ -5,6 +5,9 @@ Sabnzbd Usenet client implementation.
 """
 
 from typing import Any, Dict, List, Union
+import os
+import time
+from threading import Lock
 
 from requests.exceptions import RequestException
 
@@ -30,6 +33,12 @@ class Sabnzbd(BaseExternalClient):
     download_type = DownloadType.USENET
 
     required_tokens = ('title', 'base_url', 'api_token')
+
+    # Rate limiting to prevent API spam
+    # Cache download status for this many seconds
+    _CACHE_DURATION = 2.0
+    _status_cache: Dict[str, tuple] = {}  # {download_id: (timestamp, result)}
+    _cache_lock = Lock()
 
     # State mapping from Sabnzbd status to Kapowarr DownloadState
     STATE_MAPPING = {
@@ -78,6 +87,21 @@ class Sabnzbd(BaseExternalClient):
 
     # Minimum Sabnzbd version required for full functionality
     MIN_VERSION = '3.0.0'
+
+    @staticmethod
+    def _version_tuple(version_string: str) -> tuple:
+        """Convert version string to tuple for proper semantic comparison.
+
+        Args:
+            version_string: Version string like "3.2.1"
+
+        Returns:
+            Tuple of integers like (3, 2, 1)
+        """
+        try:
+            return tuple(int(x) for x in version_string.split('.'))
+        except (ValueError, AttributeError):
+            return (0, 0, 0)
 
     @staticmethod
     def test(
@@ -155,8 +179,8 @@ class Sabnzbd(BaseExternalClient):
 
         version = data.get('version', '')
 
-        # Check minimum version
-        if version < Sabnzbd.MIN_VERSION:
+        # Check minimum version using proper semantic versioning
+        if Sabnzbd._version_tuple(version) < Sabnzbd._version_tuple(Sabnzbd.MIN_VERSION):
             warnings.append(
                 f"⚠️ Sabnzbd version {version} is older than recommended "
                 f"({Sabnzbd.MIN_VERSION}+). Some features may not work."
@@ -309,7 +333,10 @@ class Sabnzbd(BaseExternalClient):
         return nzo_id
 
     def get_download(self, download_id: str) -> Union[Dict[str, Any], None]:
-        """Get download status from Sabnzbd.
+        """Get download status from Sabnzbd with rate limiting.
+
+        Uses a short-lived cache (2 seconds) to prevent API spam when multiple
+        threads check the same download status repeatedly.
 
         Args:
             download_id (str): The nzo_id of the download.
@@ -322,6 +349,18 @@ class Sabnzbd(BaseExternalClient):
             Union[Dict[str, Any], None]: Download info dict or None if not found.
                 Dict contains: state, size, progress, speed, and optionally storage_path.
         """
+        # Check cache first to avoid API spam
+        current_time = time.time()
+        with self._cache_lock:
+            if download_id in self._status_cache:
+                cached_time, cached_result = self._status_cache[download_id]
+                if current_time - cached_time < self._CACHE_DURATION:
+                    LOGGER.debug(
+                        f"Using cached status for {download_id} "
+                        f"(age: {current_time - cached_time:.1f}s)"
+                    )
+                    return cached_result
+
         if not self.ssn:
             self.ssn = Session()
 
@@ -367,7 +406,7 @@ class Sabnzbd(BaseExternalClient):
                 if is_encrypted:
                     title = title[11:]  # Strip "ENCRYPTED /" prefix
 
-                return {
+                result = {
                     'state': state,
                     'size': size_bytes,
                     'progress': progress,
@@ -375,6 +414,12 @@ class Sabnzbd(BaseExternalClient):
                     'is_encrypted': is_encrypted,
                     'title': title,
                 }
+
+                # Update cache
+                with self._cache_lock:
+                    self._status_cache[download_id] = (current_time, result)
+
+                return result
 
         # Not in queue, check history
         hist_params = {
@@ -408,15 +453,41 @@ class Sabnzbd(BaseExternalClient):
                 )
                 state = self.STATE_MAPPING.get(status, DownloadState.FAILED_STATE)
 
-                # Special handling for duplicate NZB failures
-                # Duplicates are not broken links - SABnzbd just already has this NZB
-                # Treat as canceled instead of failed to avoid blocklisting
-                if status == 'Failed' and 'duplicate' in fail_message.lower():
-                    state = DownloadState.CANCELED_STATE
-                    LOGGER.info(
-                        f"Download {download_id} marked as duplicate by SABnzbd, "
-                        f"treating as canceled (will not blocklist)"
-                    )
+                # Special handling for certain failure types
+                # Some failures shouldn't be treated as permanent/blocklisted
+                fail_message_lower = fail_message.lower()
+
+                if status == 'Failed':
+                    # Duplicate NZB - not a broken link, just already in SABnzbd
+                    if 'duplicate' in fail_message_lower:
+                        state = DownloadState.CANCELED_STATE
+                        LOGGER.info(
+                            f"Download {download_id} marked as duplicate by SABnzbd, "
+                            f"treating as canceled (will not blocklist)"
+                        )
+
+                    # Insufficient disk space - temporary issue, treat as canceled
+                    elif 'disk' in fail_message_lower and 'space' in fail_message_lower:
+                        state = DownloadState.CANCELED_STATE
+                        LOGGER.warning(
+                            f"Download {download_id} failed due to disk space, "
+                            f"treating as canceled (will not blocklist)"
+                        )
+
+                    # Unwanted file extension - SABnzbd's filter rejected it
+                    # This is a config mismatch, not a broken link
+                    elif 'unwanted' in fail_message_lower and 'extension' in fail_message_lower:
+                        state = DownloadState.CANCELED_STATE
+                        LOGGER.warning(
+                            f"Download {download_id} rejected by SABnzbd file filter, "
+                            f"treating as canceled (will not blocklist)"
+                        )
+
+                    # For other failures, log the message for debugging
+                    else:
+                        LOGGER.warning(
+                            f"Download {download_id} permanently failed: {fail_message}"
+                        )
 
                 size_bytes = int(entry.get('bytes', 0))
                 progress = 100.0 if status == 'Completed' else 0.0
@@ -428,8 +499,7 @@ class Sabnzbd(BaseExternalClient):
                     title = title[11:]  # Strip "ENCRYPTED /" prefix
 
                 # Also check fail_message for encryption indicators
-                fail_message = entry.get('fail_message', '').lower()
-                if 'encrypted' in fail_message or 'password' in fail_message:
+                if 'encrypted' in fail_message_lower or 'password' in fail_message_lower:
                     is_encrypted = True
 
                 result = {
@@ -445,11 +515,27 @@ class Sabnzbd(BaseExternalClient):
                 if state == DownloadState.IMPORTING_STATE:
                     storage_path = entry.get('storage', '')
                     if storage_path:
-                        result['storage_path'] = storage_path
+                        # Validate storage path exists
+                        if not os.path.isabs(storage_path):
+                            LOGGER.error(
+                                f"SABnzbd returned relative path '{storage_path}' "
+                                f"for download {download_id}, expected absolute path"
+                            )
+                        elif not os.path.exists(storage_path):
+                            LOGGER.error(
+                                f"SABnzbd storage path does not exist: {storage_path} "
+                                f"(download {download_id})"
+                            )
+                        else:
+                            result['storage_path'] = storage_path
                     else:
                         LOGGER.warning(
                             f"Completed download {download_id} has no storage path"
                         )
+
+                # Update cache
+                with self._cache_lock:
+                    self._status_cache[download_id] = (current_time, result)
 
                 return result
 
@@ -506,6 +592,10 @@ class Sabnzbd(BaseExternalClient):
         except RequestException as e:
             LOGGER.exception("Failed to delete from Sabnzbd history: ")
             raise ClientNotWorking(BrokenClientReason.CONNECTION_ERROR)
+
+        # Clear from cache
+        with self._cache_lock:
+            self._status_cache.pop(download_id, None)
 
         LOGGER.info(f"Deleted download {download_id} from Sabnzbd")
         return
