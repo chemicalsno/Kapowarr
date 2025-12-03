@@ -73,3 +73,29 @@ class SearchAllowedFormatsTest(unittest.TestCase):
             self.assertTrue(_matches_allowed_formats(cbr_result))
             self.assertTrue(_matches_allowed_formats(cbz_result))
             self.assertFalse(_matches_allowed_formats(pdf_result))
+
+    def test_usenet_bypasses_format_filter(self):
+        """Usenet sources should bypass format filtering (format unknown until download)."""
+        with patch("backend.features.search.Settings") as MockSettings:
+            MockSettings.return_value.sv.allowed_formats = CommaList("cbr,cbz")
+
+            # Usenet result without extension should pass (can't determine format pre-download)
+            usenet_result = {"display_title": "Batman.2020.Issue.5", "source": "Usenet"}
+            self.assertTrue(_matches_allowed_formats(usenet_result))
+
+            # NZBHydra2 result should also bypass
+            hydra_result = {"display_title": "Batman.2020.Issue.5", "source": "NZBHydra2"}
+            self.assertTrue(_matches_allowed_formats(hydra_result))
+
+    def test_direct_download_respects_format_filter(self):
+        """Direct download sources (GetComics) should respect format filtering."""
+        with patch("backend.features.search.Settings") as MockSettings:
+            MockSettings.return_value.sv.allowed_formats = CommaList("cbr,cbz")
+
+            # GetComics with wrong extension should fail
+            getcomics_pdf = {"display_title": "Batman 001.pdf", "source": "GetComics"}
+            self.assertFalse(_matches_allowed_formats(getcomics_pdf))
+
+            # GetComics with correct extension should pass
+            getcomics_cbr = {"display_title": "Batman 001.cbr", "source": "GetComics"}
+            self.assertTrue(_matches_allowed_formats(getcomics_cbr))

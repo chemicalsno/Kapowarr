@@ -376,19 +376,29 @@ class TestSabnzbdPriorityMappings:
 
 
 class TestSabnzbdVersionCheck:
-    """Test Sabnzbd version checking logic."""
+    """Test Sabnzbd version checking logic.
+
+    Note: These tests use the FIXED version comparison with _version_tuple(),
+    not string comparison which has bugs with multi-digit versions.
+    """
 
     MIN_VERSION = '3.0.0'
 
-    @pytest.mark.parametrize("version", ['3.0.0', '3.0.1', '3.1.0', '4.0.0', '4.2.1'])
+    @pytest.mark.parametrize("version", ['3.0.0', '3.0.1', '3.1.0', '3.10.0', '4.0.0', '4.2.1'])
+    @requires_full_env
     def test_version_passing(self, version):
         """Test versions that should pass minimum check."""
-        assert version >= self.MIN_VERSION
+        from backend.implementations.usenet_clients.Sabnzbd import Sabnzbd
+        # Use the fixed _version_tuple() method for proper comparison
+        assert Sabnzbd._version_tuple(version) >= Sabnzbd._version_tuple(self.MIN_VERSION)
 
     @pytest.mark.parametrize("version", ['2.9.9', '2.0.0', '1.0.0'])
+    @requires_full_env
     def test_version_failing(self, version):
         """Test versions that should fail minimum check."""
-        assert version < self.MIN_VERSION
+        from backend.implementations.usenet_clients.Sabnzbd import Sabnzbd
+        # Use the fixed _version_tuple() method for proper comparison
+        assert Sabnzbd._version_tuple(version) < Sabnzbd._version_tuple(self.MIN_VERSION)
 
 
 class TestSabnzbdConfigWarnings:
@@ -822,6 +832,84 @@ class TestSabnzbdGetDownload:
         assert result is not None
         assert result['is_encrypted']
         assert result['state'] == DownloadState.FAILED_STATE
+
+    def test_get_download_duplicate_marked_canceled(self, sabnzbd_client, mock_session):
+        """Test that duplicate NZB failures return CANCELED_STATE (not blocklisted)."""
+        from backend.base.definitions import DownloadState
+
+        queue_resp = MagicMock()
+        queue_resp.json.return_value = {'queue': {'slots': []}}
+
+        history_resp = MagicMock()
+        history_resp.json.return_value = {
+            'history': {
+                'slots': [{
+                    'nzo_id': 'SABnzbd_nzo_dupe',
+                    'status': 'Failed',
+                    'name': 'Batman.2020.Issue.5',
+                    'bytes': 0,
+                    'fail_message': 'Duplicate NZB'
+                }]
+            }
+        }
+        mock_session.get.side_effect = [queue_resp, history_resp]
+
+        result = sabnzbd_client.get_download('SABnzbd_nzo_dupe')
+
+        assert result is not None
+        assert result['state'] == DownloadState.CANCELED_STATE
+
+    def test_get_download_disk_space_marked_canceled(self, sabnzbd_client, mock_session):
+        """Test that disk space failures return CANCELED_STATE (not blocklisted)."""
+        from backend.base.definitions import DownloadState
+
+        queue_resp = MagicMock()
+        queue_resp.json.return_value = {'queue': {'slots': []}}
+
+        history_resp = MagicMock()
+        history_resp.json.return_value = {
+            'history': {
+                'slots': [{
+                    'nzo_id': 'SABnzbd_nzo_disk',
+                    'status': 'Failed',
+                    'name': 'Batman.2020.Issue.5',
+                    'bytes': 0,
+                    'fail_message': 'Insufficient disk space'
+                }]
+            }
+        }
+        mock_session.get.side_effect = [queue_resp, history_resp]
+
+        result = sabnzbd_client.get_download('SABnzbd_nzo_disk')
+
+        assert result is not None
+        assert result['state'] == DownloadState.CANCELED_STATE
+
+    def test_get_download_unwanted_extension_marked_canceled(self, sabnzbd_client, mock_session):
+        """Test that unwanted extension failures return CANCELED_STATE (not blocklisted)."""
+        from backend.base.definitions import DownloadState
+
+        queue_resp = MagicMock()
+        queue_resp.json.return_value = {'queue': {'slots': []}}
+
+        history_resp = MagicMock()
+        history_resp.json.return_value = {
+            'history': {
+                'slots': [{
+                    'nzo_id': 'SABnzbd_nzo_unwanted',
+                    'status': 'Failed',
+                    'name': 'Batman.2020.Issue.5',
+                    'bytes': 0,
+                    'fail_message': 'Unwanted file extension'
+                }]
+            }
+        }
+        mock_session.get.side_effect = [queue_resp, history_resp]
+
+        result = sabnzbd_client.get_download('SABnzbd_nzo_unwanted')
+
+        assert result is not None
+        assert result['state'] == DownloadState.CANCELED_STATE
 
 
 @requires_full_env
