@@ -408,6 +408,16 @@ class Sabnzbd(BaseExternalClient):
                 )
                 state = self.STATE_MAPPING.get(status, DownloadState.FAILED_STATE)
 
+                # Special handling for duplicate NZB failures
+                # Duplicates are not broken links - SABnzbd just already has this NZB
+                # Treat as canceled instead of failed to avoid blocklisting
+                if status == 'Failed' and 'duplicate' in fail_message.lower():
+                    state = DownloadState.CANCELED_STATE
+                    LOGGER.info(
+                        f"Download {download_id} marked as duplicate by SABnzbd, "
+                        f"treating as canceled (will not blocklist)"
+                    )
+
                 size_bytes = int(entry.get('bytes', 0))
                 progress = 100.0 if status == 'Completed' else 0.0
 
