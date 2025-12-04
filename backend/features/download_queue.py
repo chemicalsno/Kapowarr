@@ -583,7 +583,7 @@ class DownloadHandler(metaclass=Singleton):
                     # issue_id is a database primary key, need to get calculated_issue_number
                     try:
                         issue_obj = Issue(issue_id)
-                        covered_issue_number = issue_obj.calculated_issue_number
+                        covered_issue_number = issue_obj.get_data().calculated_issue_number
                         LOGGER.debug(f'Converted issue_id {issue_id} to calculated_issue_number {covered_issue_number}')
                     except IssueNotFound:
                         LOGGER.warning(f'Issue {issue_id} not found, using as-is')
