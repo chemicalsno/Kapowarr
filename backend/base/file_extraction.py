@@ -26,6 +26,10 @@ volume_regex_snippet = r'\b(?:(?:v(?:ol|olume))(?:\.\s|[\.\-\s])?|v)(\d+(?:(?:\-
 year_regex_snippet = r'(?:(\d{4})(?:-\d{2}){0,2}|(\d{4})[\s\.]?[\-\s](?:[\s\.]?\d{4})?|(?:\d{2}-){1,2}(\d{4})|(\d{4})[\s\.\-_]Edition|(\d{4})\-\d{4}\s{3}\d{4})'
 issue_regex_snippet = r'(?!\d+(?:p|th|rd|st|\s?(?:gb|mb|kb)))(?<!\')(?<!cv[\s\-_])(?:\d+(?:\.?[a-z0-9]+|[\s\-\._]?[½¼])?|[½¼∞])'
 
+# Special regex for decimal issues with space separator (e.g., "023 1" -> "23.1")
+# Matches patterns like "023 1", "023 2", etc. where leading zeros indicate decimal notation
+decimal_space_issue_regex = compile(r'\b0(\d{1,2})\s+(\d)\b')
+
 # Cleaning the filename
 strip_filename_regex = compile(r'\(.*?\)|\[.*?\]|\{.*?\}', IGNORECASE)
 
@@ -233,15 +237,20 @@ def _translate_filepath(filepath: str) -> str:
     """Sort of "translate" a filepath by replacing international terms for
     "issue" and "volume" with their English equivalent. E.g. "3巻" is
     replaced with "Volume 3". Also removes month names that can interfere
-    with issue number extraction.
+    with issue number extraction. Normalizes decimal issues with space
+    separators (e.g., "023 1" -> "23.1").
 
     Args:
         filepath (str): The filepath.
 
     Returns:
         str: The filepath, with any international terms replaced with their
-            English versions.
+            English versions and decimal issues normalized.
     """
+    # Normalize decimal issues with space separator (e.g., "023 1" -> "23.1")
+    # This must happen BEFORE other processing to ensure proper series name extraction
+    filepath = decimal_space_issue_regex.sub(r'\1.\2', filepath)
+
     # Remove month names that can interfere with issue number extraction
     # e.g., "No.15.Feb.2013" -> "No.15..2013"
     filepath = month_regex.sub('', filepath)
