@@ -577,13 +577,25 @@ class DownloadHandler(metaclass=Singleton):
                     LOGGER.error('No Usenet (Sabnzbd) clients configured')
                     return [], EnqueuingDownloadFailureReason.NO_WORKING_LINKS
 
+                # Convert issue_id to calculated_issue_number if needed
+                covered_issue_number = issue_id
+                if issue_id is not None and isinstance(issue_id, int):
+                    # issue_id is a database primary key, need to get calculated_issue_number
+                    try:
+                        issue_obj = Issue(issue_id)
+                        covered_issue_number = issue_obj.calculated_issue_number
+                        LOGGER.debug(f'Converted issue_id {issue_id} to calculated_issue_number {covered_issue_number}')
+                    except IssueNotFound:
+                        LOGGER.warning(f'Issue {issue_id} not found, using as-is')
+                        covered_issue_number = issue_id
+
                 # Create UsenetDownload object with pre-fetched NZB content
                 # This avoids double-fetching from NZBHydra2
                 downloads = [
                     UsenetDownload(
                         download_link=link,
                         volume_id=volume_id,
-                        covered_issues=issue_id,
+                        covered_issues=covered_issue_number,
                         source_type=DownloadSource.USENET,
                         source_name='NZBHydra2',
                         web_link=link,
