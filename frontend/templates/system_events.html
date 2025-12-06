@@ -21,29 +21,29 @@
 {% endblock %}
 
 {% block main %}
-<main>
-	<section class="tool-bar-container" aria-label="Event toolbar">
-		<div class="tool-bar">
+<main class="events-page">
+	<section class="events-toolbar" aria-label="Event toolbar">
+		<div class="toolbar-left">
 			{{ icon_button("refresh-button", "Refresh events", "refresh.svg", "Refresh") }}
-			<div class="filter-group">
-				<label for="level-filter">Level</label>
-				<select id="level-filter">
-					<option value="">All</option>
-					<option value="trace">Trace</option>
-					<option value="debug">Debug</option>
-					<option value="info">Info</option>
-					<option value="warn">Warn</option>
-					<option value="error">Error</option>
-					<option value="fatal">Fatal</option>
-				</select>
-			</div>
+		</div>
+		<div class="toolbar-right">
+			<label for="level-filter">Level</label>
+			<select id="level-filter">
+				<option value="">All</option>
+				<option value="trace">Trace</option>
+				<option value="debug">Debug</option>
+				<option value="info">Info</option>
+				<option value="warn">Warn</option>
+				<option value="error">Error</option>
+				<option value="fatal">Fatal</option>
+			</select>
 		</div>
 	</section>
 
-	<div class="main-window">
+	<section class="events-table">
 		{{ page_turner() }}
 
-		<div class="table-container icon-text-color">
+		<div class="table-wrapper icon-text-color">
 			<table>
 				<thead>
 					<tr>
@@ -51,14 +51,14 @@
 						<th>Level</th>
 						<th>Source</th>
 						<th>Message</th>
-						<th>Actions</th>
+						<th class="actions-header">Actions</th>
 					</tr>
 				</thead>
 				<tbody id="events-table"></tbody>
 			</table>
 			<p id="events-empty" class="hidden">No events for the selected filters.</p>
 		</div>
-	</div>
+	</section>
 </main>
 
 <div class="modal hidden" id="event-modal" role="dialog" aria-modal="true" aria-labelledby="event-modal-title">
