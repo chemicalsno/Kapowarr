@@ -2,6 +2,7 @@
 	display: inline-flex;
 	align-items: center;
 	gap: .35rem;
+	margin-left: 1rem;
 }
 
 .filter-field label {
@@ -43,6 +44,10 @@
 .level-column span[data-level="fatal"] {
 	background: none;
 	color: inherit;
+}
+
+.time-column {
+	white-space: nowrap;
 }
 
 #events-empty {
