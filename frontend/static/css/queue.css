@@ -1,27 +1,12 @@
-main {
-    position: relative;
-}
-
-#empty-window {
-    position: absolute;
-    inset: 0 0 0 0;
-    background-color: var(--background-color);
-}
-
-main:has(#queue tr) #empty-window,
-main:not(:has(#queue tr)) .tool-bar-container {
-    display: none;
-}
-
-table {
+.table-container table {
 	width: 100%;
 	min-width: 50rem;
-	padding: 1rem;
 	color: var(--text-color);
 }
 
-th, td {
-	padding: .5rem;
+.table-container th,
+.table-container td {
+	padding: .6rem;
 }
 
 .queue-entry > * {
@@ -67,8 +52,12 @@ th, td {
 	width: 20px;
 }
 
-@media (min-width: 720px) {
-    main {
-        width: calc(100vw - var(--nav-width));
-    }
+#empty-window {
+	display: none;
+	margin-top: 1rem;
+}
+
+.table-container:has(#queue tr:empty) #empty-window,
+.table-container:not(:has(#queue tr:not(:empty))) #empty-window {
+	display: block;
 }

@@ -2,6 +2,7 @@
 {% from "base.html" import icon_button %}
 {% block title %}Queue{% endblock %}
 {% block css %}
+	<link rel="stylesheet" href="{{ url_for('static', filename='css/history.css') }}">
 	<link rel="stylesheet" href="{{ url_for('static', filename='css/queue.css') }}">
 {% endblock %}
 {% block js %}
@@ -39,39 +40,47 @@
 
 {% block main %}
 <main>
-    <section class="tool-bar-container" aria-label="Tool bar">
-        <div class="tool-bar">
-            {{ icon_button(
-                "removeall-button",
-                "Remove all downloads from the queue",
-                "delete.svg",
-                "Remove All"
-            ) }}
-        </div>
-    </section>
-    <div class="icon-text-color">
-        <table>
-            <thead>
-                <tr>
-                    <th class="status-column">Status</th>
-                    <th>Title</th>
-                    <th class="status-column">Source</th>
-                    <th class="number-column">Size</th>
-                    <th class="number-column">Speed</th>
-                    <th class="number-column">Progress</th>
-                    <th class="option-column">Actions</th>
-                </tr>
-            </thead>
-            <tbody id="queue"></tbody>
-        </table>
-    </div>
-    <section id="empty-window" class="loading-screen">
-        <div class="alert alert-info">
-            <div class="alert-content">
-                <div class="alert-title">Queue is Empty</div>
-                <div class="alert-message">There are no downloads in the queue. Downloads will appear here when you add them.</div>
-            </div>
-        </div>
-    </section>
+	<section class="tool-bar-container" aria-label="Tool bar">
+		<div class="tool-bar">
+			{{ icon_button(
+				"refresh-button",
+				"Refresh the queue",
+				"refresh.svg",
+				"Refresh"
+			) }}
+			{{ icon_button(
+				"removeall-button",
+				"Remove all downloads from the queue",
+				"delete.svg",
+				"Remove All"
+			) }}
+		</div>
+	</section>
+	<div class="main-window">
+		<div class="table-container icon-text-color">
+			<table>
+				<thead>
+					<tr>
+						<th class="status-column">Status</th>
+						<th>Title</th>
+						<th class="status-column">Source</th>
+						<th class="number-column">Size</th>
+						<th class="number-column">Speed</th>
+						<th class="number-column">Progress</th>
+						<th class="option-column">Actions</th>
+					</tr>
+				</thead>
+				<tbody id="queue"></tbody>
+			</table>
+			<section id="empty-window" class="alert alert-info">
+				<div class="alert-content">
+					<div class="alert-title">Queue is Empty</div>
+					<div class="alert-message">
+						There are no downloads in the queue. Downloads will appear here when you add them.
+					</div>
+				</div>
+			</section>
+		</div>
+	</div>
 </main>
 {% endblock main %}

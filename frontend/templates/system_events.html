@@ -2,6 +2,7 @@
 {% from "base.html" import icon_button, page_turner %}
 {% block title %}Events{% endblock %}
 {% block css %}
+	<link rel="stylesheet" href="{{ url_for('static', filename='css/history.css') }}">
 	<link rel="stylesheet" href="{{ url_for('static', filename='css/system_events.css') }}">
 {% endblock %}
 {% block js %}
@@ -21,32 +22,29 @@
 {% endblock %}
 
 {% block main %}
-<main class="events-page">
-	<section class="events-toolbar" aria-label="Event toolbar">
-		<div class="toolbar-actions">
-			<button id="refresh-button" class="toolbar-button" aria-label="Refresh events">
-				<img src="{{ url_for('static', filename='img/refresh.svg') }}" alt="" aria-hidden="true">
-				<span>Refresh</span>
-			</button>
-		</div>
-		<div class="toolbar-filters">
-			<label for="level-filter">Level</label>
-			<select id="level-filter">
-				<option value="">All</option>
-				<option value="trace">Trace</option>
-				<option value="debug">Debug</option>
-				<option value="info">Info</option>
-				<option value="warn">Warn</option>
-				<option value="error">Error</option>
-				<option value="fatal">Fatal</option>
-			</select>
+<main>
+	<section class="tool-bar-container" aria-label="Event toolbar">
+		<div class="tool-bar">
+			{{ icon_button("refresh-button", "Refresh events", "refresh.svg", "Refresh") }}
+			<div class="filter-field">
+				<label for="level-filter">Level</label>
+				<select id="level-filter">
+					<option value="">All</option>
+					<option value="trace">Trace</option>
+					<option value="debug">Debug</option>
+					<option value="info">Info</option>
+					<option value="warn">Warn</option>
+					<option value="error">Error</option>
+					<option value="fatal">Fatal</option>
+				</select>
+			</div>
 		</div>
 	</section>
 
-	<section class="events-table">
+	<div class="main-window">
 		{{ page_turner() }}
 
-		<div class="table-wrapper icon-text-color">
+		<div class="table-container icon-text-color">
 			<table>
 				<thead>
 					<tr>
@@ -61,7 +59,7 @@
 			</table>
 			<p id="events-empty" class="hidden">No events for the selected filters.</p>
 		</div>
-	</section>
+	</div>
 </main>
 
 <div class="modal hidden" id="event-modal" role="dialog" aria-modal="true" aria-labelledby="event-modal-title">
