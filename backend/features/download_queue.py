@@ -105,8 +105,9 @@ class DownloadHandler(metaclass=Singleton):
 
             PostProcessor.success(download)
 
-        self.queue.remove(download)
-        ws.emit(RemovedFromQueueEvent(download))
+        if download in self.queue:
+            self.queue.remove(download)
+            ws.emit(RemovedFromQueueEvent(download))
 
         self._process_queue()
         return
@@ -144,13 +145,15 @@ class DownloadHandler(metaclass=Singleton):
             if download.state == DownloadState.CANCELED_STATE:
                 download.remove_from_client(delete_files=True)
                 post_processer.canceled(download)
-                self.queue.remove(download)
+                if download in self.queue:
+                    self.queue.remove(download)
                 break
 
             elif download.state == DownloadState.FAILED_STATE:
                 download.remove_from_client(delete_files=True)
                 post_processer.perm_failed(download)
-                self.queue.remove(download)
+                if download in self.queue:
+                    self.queue.remove(download)
                 break
 
             elif download.state == DownloadState.SHUTDOWN_STATE:
@@ -168,7 +171,8 @@ class DownloadHandler(metaclass=Singleton):
                 if self.settings.sv.delete_completed_downloads:
                     download.remove_from_client(delete_files=False)
                 post_processer.success(download)
-                self.queue.remove(download)
+                if download in self.queue:
+                    self.queue.remove(download)
                 break
 
             else:
@@ -397,13 +401,7 @@ class DownloadHandler(metaclass=Singleton):
                     }
                 ).lastrowid
 
-            if not isinstance(download, ExternalDownload):
-                download.download_thread = Server().get_db_thread(
-                    target=self.__run_download,
-                    args=(download,),
-                    name=f'DownloadThread-{download.id}'
-                )
-
+            # Create download thread based on download type
             if isinstance(download, TorrentDownload):
                 thread = Server().get_db_thread(
                     target=self.__run_torrent_download,
@@ -421,6 +419,15 @@ class DownloadHandler(metaclass=Singleton):
                 )
                 download.download_thread = thread
                 thread.start()
+
+            elif not isinstance(download, ExternalDownload):
+                # Direct downloads (Mega, MediaFire, etc.) - create thread but don't start
+                # Will be started by _process_queue() respecting concurrency limits
+                download.download_thread = Server().get_db_thread(
+                    target=self.__run_download,
+                    args=(download,),
+                    name=f'DownloadThread-{download.id}'
+                )
 
             WebSocket().emit(AddedToQueueEvent(download))
         return downloads
@@ -759,7 +766,7 @@ class DownloadHandler(metaclass=Singleton):
                     web_title=download['web_title'],
                     web_sub_title=download['web_sub_title'],
                     download_link=download['download_link'],
-                    source=DownloadSource(download['source']),
+                    source=DownloadSource(download['source_type']),
                     volume_id=download['volume_id'],
                     issue_id=issue_id,
                     reason=BlocklistReason.LINK_BROKEN
@@ -837,7 +844,8 @@ class DownloadHandler(metaclass=Singleton):
                 )
             )
         ):
-            self.queue.remove(download)
+            if download in self.queue:
+                self.queue.remove(download)
             PostProcessor.canceled(download)
             WebSocket().emit(RemovedFromQueueEvent(download))
 
