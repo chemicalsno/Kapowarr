@@ -6,10 +6,12 @@ Setting up, using and altering the logger
 
 import logging
 import logging.config
+from datetime import datetime
 from io import StringIO
 from logging.handlers import RotatingFileHandler
 from os.path import exists, isdir, isfile, join
-from typing import Any, Union
+import re
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from backend.base.definitions import Constants
 
@@ -225,6 +227,103 @@ def get_log_file_contents() -> StringIO:
             sio.writelines(f)
 
     return sio
+
+
+LOG_LINE_PATTERN = re.compile(
+    r'^(?P<timestamp>[^|]+)\s\|\s'
+    r'(?P<process>[^|]+)\s\|\s'
+    r'(?P<thread>[^|]+)\s\|\s'
+    r'(?P<location>[^|]+)\s\|\s'
+    r'(?P<level>[^|]+)\s\|\s'
+    r'(?P<message>.*)$'
+)
+
+
+def _parse_log_line(line: str) -> Optional[Dict[str, str]]:
+    """
+    Parse a single log line into its components.
+    """
+    match = LOG_LINE_PATTERN.match(line.strip())
+    if not match:
+        return None
+
+    parts = match.groupdict()
+    timestamp = parts["timestamp"].strip()
+    try:
+        dt = datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S%z")
+        formatted_time = dt.isoformat()
+    except ValueError:
+        formatted_time = timestamp
+
+    return {
+        "time": formatted_time,
+        "process": parts["process"].strip(),
+        "thread": parts["thread"].strip(),
+        "source": parts["location"].strip(),
+        "level": parts["level"].strip().lower(),
+        "message": parts["message"].strip()
+    }
+
+
+def _merge_multiline_entries(lines: List[str]) -> List[Dict[str, str]]:
+    """
+    Combine parsed log entries, keeping multi-line messages together.
+    """
+    entries: List[Dict[str, str]] = []
+    current: Optional[Dict[str, str]] = None
+
+    for raw_line in lines:
+        parsed = _parse_log_line(raw_line)
+        if parsed:
+            current = parsed
+            entries.append(current)
+        elif current:
+            extra = raw_line.rstrip("\n")
+            if extra:
+                current["message"] += f"\n{extra}"
+
+    return entries
+
+
+def get_log_events(
+    limit: int = 100,
+    offset: int = 0,
+    level: Optional[str] = None
+) -> Tuple[List[Dict[str, str]], int]:
+    """
+    Return parsed log events from the Kapowarr log file.
+
+    Args:
+        limit (int, optional): Number of records per page. Defaults to 100.
+        offset (int, optional): Page offset (0 == most recent page). Defaults to 0.
+        level (Optional[str], optional): Lowercase level filter. Defaults to None.
+
+    Returns:
+        Tuple[List[Dict[str, str]], int]: (entries, total_entries)
+    """
+    sio = get_log_file_contents()
+    lines = sio.getvalue().splitlines()
+    lines.reverse()  # newest entries first
+
+    entries = _merge_multiline_entries(lines)
+
+    if level:
+        level_value = level.lower()
+        entries = [entry for entry in entries if entry["level"] == level_value]
+
+    total = len(entries)
+    start = max(offset, 0) * max(limit, 1)
+    end = start + max(limit, 1)
+
+    paged_entries = [
+        {
+            **entry,
+            "id": f'{entry["time"]}-{start + idx}'
+        }
+        for idx, entry in enumerate(entries[start:end])
+    ]
+
+    return paged_entries, total
 
 
 def set_log_level(

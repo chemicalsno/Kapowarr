@@ -3,6 +3,7 @@
 from asyncio import run
 from datetime import datetime
 from io import BytesIO
+from math import ceil
 from typing import Any, Dict, List, Tuple, Type, Union
 
 from flask import Blueprint, request, send_file
@@ -10,13 +11,13 @@ from flask import Blueprint, request, send_file
 from backend.base.custom_exceptions import (InvalidKeyValue,
                                             KeyNotFound, TaskNotFound)
 from backend.base.definitions import (BlocklistReason, BlocklistReasonID,
-                                      CredentialData, CredentialSource,
-                                      DownloadSource, KapowarrException,
-                                      LibraryFilter, LibrarySorting,
-                                      MonitorScheme, SpecialVersion,
-                                      StartType, VolumeData)
-from backend.base.helpers import hash_password
-from backend.base.logging import LOGGER, get_log_file_contents
+                                      Constants, CredentialData,
+                                      CredentialSource, DownloadSource,
+                                      KapowarrException, LibraryFilter,
+                                      LibrarySorting, MonitorScheme,
+                                      SpecialVersion, StartType, VolumeData)
+from backend.base.helpers import Session, hash_password
+from backend.base.logging import LOGGER, get_log_events, get_log_file_contents
 from backend.features.download_queue import (DownloadHandler,
                                              delete_download_history,
                                              get_download_history)
@@ -388,6 +389,53 @@ def api_restart():
     Server().restart()
     return return_api({})
 
+
+LEVEL_ALIASES = {
+    'trace': 'trace',
+    'debug': 'debug',
+    'info': 'info',
+    'warn': 'warn',
+    'warning': 'warn',
+    'error': 'error',
+    'fatal': 'fatal'
+}
+
+
+@api.route('/system/events', methods=['GET'])
+@error_handler
+@auth
+def api_system_events():
+    limit = extract_key(request, 'limit', False)
+    offset = extract_key(request, 'offset', False)
+
+    limit = limit if isinstance(limit, int) and limit > 0 else 50
+    limit = min(limit, 200)
+
+    offset = offset if isinstance(offset, int) and offset >= 0 else 0
+
+    level = request.values.get('level', '').strip().lower()
+    level_filter = None
+    if level:
+        level_filter = LEVEL_ALIASES.get(level)
+        if not level_filter:
+            raise InvalidKeyValue('level', level)
+
+    events, total = get_log_events(
+        limit=limit,
+        offset=offset,
+        level=level_filter
+    )
+
+    total_pages = ceil(total / limit) if total and limit else 0
+
+    return return_api({
+        'records': events,
+        'page': offset,
+        'pageSize': limit,
+        'totalRecords': total,
+        'totalPages': total_pages
+    })
+
 # =====================
 # Settings
 # =====================
@@ -475,6 +523,67 @@ def api_settings_api_key():
 def api_settings_available_formats():
     result = list(ConvertersManager.get_available_formats())
     return return_api(result)
+
+
+@api.route('/indexers/hydra/status', methods=['GET'])
+@error_handler
+@auth
+def api_hydra_status():
+    """Return basic health information for NZBHydra2.
+
+    This performs a lightweight Newznab API call using the configured
+    base URL and API key. The response is always HTTP 200; callers should
+    inspect the result fields to determine health.
+    """
+    settings = Settings().sv
+
+    # Not configured at all
+    if not settings.nzbhydra_base_url or not settings.nzbhydra_api_key:
+        return return_api({
+            'configured': False,
+            'healthy': False,
+            'status': 'not_configured',
+            'message': 'NZBHydra2 base URL or API key not set'
+        })
+
+    url = f"{settings.nzbhydra_base_url.rstrip('/')}/api"
+    params = {
+        't': 'search',
+        'apikey': settings.nzbhydra_api_key,
+        'q': 'kapowarr-status-check',
+        'o': 'json'
+    }
+
+    try:
+        with Session() as ssn:
+            response = ssn.get(url, params=params,
+                               timeout=Constants.REQUEST_TIMEOUT)
+
+        if not response.ok:
+            return return_api({
+                'configured': True,
+                'healthy': False,
+                'status': 'http_error',
+                'code': response.status_code,
+                'message': f'HTTP {response.status_code} from NZBHydra2'
+            })
+
+        # If we got a 2xx response, consider Hydra healthy for our purposes.
+        return return_api({
+            'configured': True,
+            'healthy': True,
+            'status': 'ok',
+            'message': 'Successfully connected to NZBHydra2'
+        })
+
+    except Exception as e:  # pragma: no cover - best effort status
+        LOGGER.warning(f'Error while checking NZBHydra2 status: {e}')
+        return return_api({
+            'configured': True,
+            'healthy': False,
+            'status': 'exception',
+            'message': str(e)
+        })
 
 
 @api.route('/rootfolder', methods=['GET', 'POST'])
