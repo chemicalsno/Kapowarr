@@ -1,53 +1,24 @@
-FROM python:3.13-slim
+FROM python:3.13-slim-bookworm
 
 STOPSIGNAL SIGTERM
 
-ENV S6_OVERLAY_VERSION=3.1.6.2
-
-RUN \
-    apt-get update \
-    && apt-get install -y --no-install-recommends \
-        git \
-        curl \
-        xz-utils \
-        bash \
-    && curl -L -o /tmp/s6-overlay-noarch.tar.xz \
-        https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-noarch.tar.xz \
-    && curl -L -o /tmp/s6-overlay.tar.xz \
-        https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-x86_64.tar.xz \
-    && tar -C / -Jxpf /tmp/s6-overlay-noarch.tar.xz \
-    && tar -C / -Jxpf /tmp/s6-overlay.tar.xz \
-    && rm -rf /tmp/s6-overlay*.tar.xz \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip3 install --no-cache-dir --upgrade pip --break-system-packages
-
-WORKDIR /app
-
-COPY requirements.txt requirements.txt
-RUN pip3 install --break-system-packages --no-cache-dir -r requirements.txt
+WORKDIR /tmp
 
 COPY . .
 
-RUN addgroup --system abc && adduser --system --ingroup abc abc
+RUN pip install --no-cache-dir .
 
-RUN \
-    chown -R abc:abc /app \
-    && chmod -R 755 /app
+RUN useradd -d /app --create-home kapowarr
 
-USER root
+WORKDIR /app
+
+USER kapowarr
 
 EXPOSE 5656
 
-ENV PUID=1000 \
-    PGID=1000 \
-    TZ=UTC
-
-RUN \
-    mkdir -p /etc/services.d/kapowarr \
-    && echo "#!/usr/bin/with-contenv bash\ncd /app\nexec s6-setuidgid abc python3 /app/Kapowarr.py" \
-        > /etc/services.d/kapowarr/run \
-    && chmod +x /etc/services.d/kapowarr/run
-
-ENTRYPOINT ["/init"]
+CMD ["python3", "/tmp/Kapowarr.py"]
