@@ -418,6 +418,43 @@ CREATE TABLE IF NOT EXISTS issues_files(
 );
 CREATE INDEX IF NOT EXISTS issues_files_issue_id_index
     ON issues_files(issue_id);
+CREATE VIRTUAL TABLE IF NOT EXISTS volumes_fts USING fts5(
+    volume_id UNINDEXED,
+    title,
+    issue_number,
+    tokenize = "unicode61 remove_diacritics 2",
+    prefix = '2 3 4'
+);
+-- Keep FTS in sync with issues/volumes
+DROP TRIGGER IF EXISTS volumes_fts_issues_ai;
+CREATE TRIGGER volumes_fts_issues_ai AFTER INSERT ON issues BEGIN
+    INSERT INTO volumes_fts(rowid, volume_id, title, issue_number)
+    VALUES (
+        new.id,
+        new.volume_id,
+        (SELECT title FROM volumes WHERE id = new.volume_id),
+        new.issue_number
+    );
+END;
+DROP TRIGGER IF EXISTS volumes_fts_issues_au;
+CREATE TRIGGER volumes_fts_issues_au AFTER UPDATE OF issue_number, volume_id ON issues BEGIN
+    DELETE FROM volumes_fts WHERE rowid = old.id;
+    INSERT INTO volumes_fts(rowid, volume_id, title, issue_number)
+    VALUES (
+        new.id,
+        new.volume_id,
+        (SELECT title FROM volumes WHERE id = new.volume_id),
+        new.issue_number
+    );
+END;
+DROP TRIGGER IF EXISTS volumes_fts_issues_ad;
+CREATE TRIGGER volumes_fts_issues_ad AFTER DELETE ON issues BEGIN
+    DELETE FROM volumes_fts WHERE rowid = old.id;
+END;
+DROP TRIGGER IF EXISTS volumes_fts_volumes_au;
+CREATE TRIGGER volumes_fts_volumes_au AFTER UPDATE OF title ON volumes BEGIN
+    UPDATE volumes_fts SET title = new.title WHERE volume_id = new.id;
+END;
 CREATE TABLE IF NOT EXISTS volume_files(
     file_id INTEGER PRIMARY KEY,
     volume_id INTEGER NOT NULL,

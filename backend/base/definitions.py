@@ -80,7 +80,7 @@ class Constants:
     }
     "A mapping of the OS to the rar executable to use"
 
-    DEFAULT_USERAGENT = "Kapowarr"
+    DEFAULT_USERAGENT = "Kapowarr (+https://github.com/chemicalsno/Kapowarr)"
     "The user agent to use when making web requests"
 
     BROWSER_USERAGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"

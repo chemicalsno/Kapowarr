@@ -9,9 +9,12 @@ Based on Mylar3's OPDS implementation (GPL-3.0 compatible).
 
 from base64 import b64decode
 from datetime import datetime
+from hashlib import sha1
 from io import BytesIO
 from os.path import basename, exists, splitext
-from typing import Any, Dict, List, Union
+from re import sub
+from sqlite3 import OperationalError
+from typing import Any, Dict, List, Optional, Union
 from urllib.parse import quote_plus
 
 import requests
@@ -33,6 +36,8 @@ from backend.internals.settings import Settings
 opds = Blueprint('opds', __name__, url_prefix='/opds')
 
 PAGE_SIZE = 50
+FEED_CACHE_MAX_AGE = 300  # 5 minutes
+COVER_CACHE_MAX_AGE = 86400  # 24 hours
 
 # MIME type mapping for comic file extensions
 COMIC_MIMETYPES = {
@@ -41,6 +46,39 @@ COMIC_MIMETYPES = {
     '.pdf': 'application/pdf',
     '.epub': 'application/epub+zip',
 }
+
+
+def _generate_etag(data: bytes) -> str:
+    """Return a weak ETag derived from the given payload."""
+    return f'W/"{sha1(data).hexdigest()}"'
+
+
+def _etag_matches_request(etag: str) -> bool:
+    """Return True if the client's If-None-Match header matches the given ETag."""
+    header = request.headers.get('If-None-Match')
+    if not header:
+        return False
+
+    for raw_tag in header.split(','):
+        tag = raw_tag.strip()
+        if tag == '*' or tag == etag:
+            return True
+    return False
+
+
+def _not_modified_response(etag: str, max_age: int) -> Response:
+    """Return a 304 response with cache headers."""
+    resp = Response(status=304)
+    resp.headers['ETag'] = etag
+    resp.headers['Cache-Control'] = f'public, max-age={max_age}, must-revalidate'
+    return resp
+
+
+def _apply_cache_headers(response: Response, etag: str, max_age: int) -> Response:
+    """Attach cache-related headers to a Response."""
+    response.headers['ETag'] = etag
+    response.headers['Cache-Control'] = f'public, max-age={max_age}, must-revalidate'
+    return response
 
 
 def _check_opds_access() -> Union[Response, None]:
@@ -166,6 +204,21 @@ def _get_opds_root() -> str:
     # Get the base URL from the request (includes scheme and host)
     base_url = request.url_root.rstrip('/')
     return f'{base_url}/opds'
+
+
+def _prepare_fts_query(text: str) -> str:
+    """Prepare a user query for SQLite FTS MATCH.
+
+    Strips non-alphanumeric characters per token and adds a trailing '*' so
+    prefix searches stay indexed. Returns empty string if nothing usable.
+    """
+    tokens = []
+    for raw in text.split():
+        token = sub(r'[^0-9A-Za-z]+', '', raw)
+        if not token:
+            continue
+        tokens.append(f'{token}*')
+    return " ".join(tokens)
 
 
 def _handle_opds_error(f):
@@ -373,15 +426,25 @@ def volume_issues(volume_id: int):
         ),
     ]
     
-    # Get files for this volume
+    # Get total files for pagination
+    total = cursor.execute("""
+        SELECT COUNT(DISTINCT f.id)
+        FROM files f
+        JOIN issues_files if ON f.id = if.file_id
+        JOIN issues i ON if.issue_id = i.id
+        WHERE i.volume_id = ?
+    """, (volume_id,)).fetchone()[0]
+
+    # Get paginated files for this volume
     files = cursor.execute("""
-        SELECT f.id, f.filepath, f.size, i.issue_number, i.calculated_issue_number, i.date
+        SELECT DISTINCT f.id, f.filepath, f.size, i.issue_number, i.calculated_issue_number, i.date
         FROM files f
         JOIN issues_files if ON f.id = if.file_id
         JOIN issues i ON if.issue_id = i.id
         WHERE i.volume_id = ?
         ORDER BY i.calculated_issue_number
-    """, (volume_id,)).fetchall()
+        LIMIT ? OFFSET ?
+    """, (volume_id, PAGE_SIZE, index)).fetchall()
 
     entries = []
     LOGGER.debug(f'OPDS: Found {len(files)} files for volume {volume_id}')
@@ -411,7 +474,6 @@ def volume_issues(volume_id: int):
         entries.append(entry)
     
     # Pagination
-    total = len(entries)
     if total > index + PAGE_SIZE:
         links.append(_make_link(
             href=f'{root_url}/volume/{volume_id}?index={index + PAGE_SIZE}',
@@ -429,7 +491,7 @@ def volume_issues(volume_id: int):
         title=f'Kapowarr OPDS - {display_title}',
         feed_id=f'kapowarr:volume:{volume_id}',
         links=links,
-        entries=entries[index:index + PAGE_SIZE]
+        entries=entries
     )
 
 
@@ -583,32 +645,66 @@ def search():
         ),
     ]
 
-    # Search volumes and issues - use LIMIT/OFFSET for efficient pagination
+    # Search volumes and issues - prefer FTS if available, fallback to LIKE
     cursor = get_db()
     search_pattern = f'%{query}%'
+    use_fallback_like = False
 
-    # Get total count for pagination
-    total = cursor.execute("""
-        SELECT COUNT(DISTINCT f.id)
-        FROM files f
-        JOIN issues_files if ON f.id = if.file_id
-        JOIN issues i ON if.issue_id = i.id
-        JOIN volumes v ON i.volume_id = v.id
-        WHERE v.title LIKE ? OR i.issue_number LIKE ?
-    """, (search_pattern, search_pattern)).fetchone()[0]
+    try:
+        fts_query = _prepare_fts_query(query)
+        if not fts_query:
+            raise ValueError("No usable tokens for FTS")
 
-    # Search by volume title or issue number with pagination
-    files = cursor.execute("""
-        SELECT DISTINCT f.id, f.filepath, f.size, v.id, v.title, v.year,
-               i.issue_number, i.calculated_issue_number
-        FROM files f
-        JOIN issues_files if ON f.id = if.file_id
-        JOIN issues i ON if.issue_id = i.id
-        JOIN volumes v ON i.volume_id = v.id
-        WHERE v.title LIKE ? OR i.issue_number LIKE ?
-        ORDER BY v.title, i.calculated_issue_number
-        LIMIT ? OFFSET ?
-    """, (search_pattern, search_pattern, PAGE_SIZE, index)).fetchall()
+        # Get total count for pagination via FTS
+        total = cursor.execute("""
+            SELECT COUNT(DISTINCT f.id)
+            FROM volumes_fts vf
+            JOIN volumes v ON v.id = vf.volume_id
+            JOIN issues i ON i.id = vf.rowid
+            JOIN issues_files if ON if.issue_id = i.id
+            JOIN files f ON f.id = if.file_id
+            WHERE vf MATCH ?
+        """, (fts_query,)).fetchone()[0]
+
+        # Search by FTS (prefix-matched tokens) with pagination
+        files = cursor.execute("""
+            SELECT DISTINCT f.id, f.filepath, f.size, v.id, v.title, v.year,
+                   i.issue_number, i.calculated_issue_number
+            FROM volumes_fts vf
+            JOIN volumes v ON v.id = vf.volume_id
+            JOIN issues i ON i.id = vf.rowid
+            JOIN issues_files if ON if.issue_id = i.id
+            JOIN files f ON f.id = if.file_id
+            WHERE vf MATCH ?
+            ORDER BY v.title, i.calculated_issue_number
+            LIMIT ? OFFSET ?
+        """, (fts_query, PAGE_SIZE, index)).fetchall()
+    except (OperationalError, ValueError):
+        use_fallback_like = True
+
+    if use_fallback_like:
+        # Get total count for pagination
+        total = cursor.execute("""
+            SELECT COUNT(DISTINCT f.id)
+            FROM files f
+            JOIN issues_files if ON f.id = if.file_id
+            JOIN issues i ON if.issue_id = i.id
+            JOIN volumes v ON i.volume_id = v.id
+            WHERE v.title LIKE ? OR i.issue_number LIKE ?
+        """, (search_pattern, search_pattern)).fetchone()[0]
+
+        # Search by volume title or issue number with pagination
+        files = cursor.execute("""
+            SELECT DISTINCT f.id, f.filepath, f.size, v.id, v.title, v.year,
+                   i.issue_number, i.calculated_issue_number
+            FROM files f
+            JOIN issues_files if ON f.id = if.file_id
+            JOIN issues i ON if.issue_id = i.id
+            JOIN volumes v ON i.volume_id = v.id
+            WHERE v.title LIKE ? OR i.issue_number LIKE ?
+            ORDER BY v.title, i.calculated_issue_number
+            LIMIT ? OFFSET ?
+        """, (search_pattern, search_pattern, PAGE_SIZE, index)).fetchall()
 
     entries = []
     for file_row in files:
