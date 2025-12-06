@@ -516,19 +516,9 @@ class Sabnzbd(BaseExternalClient):
                     # SABnzbd uses 'storage' field for completed files, 'path' is the incomplete folder
                     storage_path = entry.get('storage', '') or entry.get('path', '')
                     if storage_path:
-                        # Validate storage path exists
-                        if not os.path.isabs(storage_path):
-                            LOGGER.error(
-                                f"SABnzbd returned relative path '{storage_path}' "
-                                f"for download {download_id}, expected absolute path"
-                            )
-                        elif not os.path.exists(storage_path):
-                            LOGGER.error(
-                                f"SABnzbd storage path does not exist: {storage_path} "
-                                f"(download {download_id})"
-                            )
-                        else:
-                            result['storage_path'] = storage_path
+                        # Include the path - validation will happen after remote path mapping
+                        result['storage_path'] = storage_path
+                        LOGGER.debug(f"Download {download_id} storage_path: {storage_path}")
                     else:
                         LOGGER.warning(
                             f"Completed download {download_id} has no storage path"
