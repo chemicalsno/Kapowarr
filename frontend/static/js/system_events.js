@@ -104,23 +104,6 @@ function changePage(delta, apiKey) {
 	fillEvents(apiKey);
 }
 
-function openModal(record) {
-	EventsEls.modal.time.innerText = formatDate(record.time);
-	EventsEls.modal.level.innerText = record.level.toUpperCase();
-	EventsEls.modal.source.innerText = record.source || '-';
-	EventsEls.modal.process.innerText = record.process || '-';
-	EventsEls.modal.thread.innerText = record.thread || '-';
-	EventsEls.modal.message.innerText = record.message || '';
-
-	document.body.classList.add('modal-open');
-	EventsEls.modal.container.classList.remove('hidden');
-}
-
-function closeModal() {
-	document.body.classList.remove('modal-open');
-	EventsEls.modal.container.classList.add('hidden');
-}
-
 function bootstrapEvents(apiKey) {
 	EventsEls.buttons.refresh.onclick = () => fillEvents(apiKey);
 
