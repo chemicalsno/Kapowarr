@@ -147,7 +147,6 @@ docker-compose.yml
 
 # Various files
 *.md
-LICENSE
 
 # Tests
 tests/
