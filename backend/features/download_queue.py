@@ -30,6 +30,7 @@ from backend.features.post_processing import (PostProcessor,
                                               PostProcessorTorrentsCopy)
 from backend.implementations.blocklist import add_to_blocklist
 from backend.implementations.download_clients import (BaseDirectDownload,
+                                                      DirectDownload,
                                                       MegaDownload,
                                                       TorrentDownload,
                                                       UsenetDownload)
@@ -95,6 +96,29 @@ class DownloadHandler(metaclass=Singleton):
 
         elif download.state == DownloadState.FAILED_STATE:
             PostProcessor.failed(download)
+            # Libgen downloads can fail a few times before working
+            # when their servers are struggling
+            if (
+                download.source_type == DownloadSource.LIBGENPLUS
+                and download.attempts < 15
+            ):
+                if download in self.queue:
+                    self.queue.remove(download)
+                ws.emit(RemovedFromQueueEvent(download))
+
+                LOGGER.info(
+                    f'Attempt #{download.attempts + 1} for Libgen Download with id {download.id}'
+                )
+                download.state = DownloadState.QUEUED_STATE
+                self.queue.insert(
+                    0,
+                    self.__prepare_downloads_for_queue(
+                        [download], forced_match=False
+                    )[0],
+                )
+
+                self._process_queue()
+                return
 
         elif download.state == DownloadState.DOWNLOADING_STATE:
             download.state = DownloadState.IMPORTING_STATE
@@ -470,8 +494,10 @@ class DownloadHandler(metaclass=Singleton):
         """
         if link.startswith(Constants.GC_SITE_URL):
             return 'gc'
-        elif (link.endswith('.nzb') 
-              or 'nzbhydra' in link.lower() 
+        elif link.startswith(Constants.LIBGEN_SITE_URL):
+            return 'lg'
+        elif (link.endswith('.nzb')
+              or 'nzbhydra' in link.lower()
               or '/api?t=' in link
               or '/getnzb/' in link):  # NZBHydra2 download URLs
             return 'nzb'
@@ -497,7 +523,8 @@ class DownloadHandler(metaclass=Singleton):
         link: str,
         volume_id: int,
         issue_id: Union[int, float, None] = None,
-        force_match: bool = False
+        force_match: bool = False,
+        result: Union[SearchResultData, str, None] = None
     ) -> Tuple[List[dict], Union[EnqueuingDownloadFailureReason, None]]:
         """Add a download to the queue.
 
@@ -663,6 +690,59 @@ class DownloadHandler(metaclass=Singleton):
             except Exception as e:
                 LOGGER.warning(f"Error processing NZB: {e}")
                 return [], EnqueuingDownloadFailureReason.LINK_BROKEN
+
+        elif link_type == 'lg' and result is not None and not isinstance(result, str):
+            # Handle Libgen+ download
+            LOGGER.info(f'Processing Libgen+ download from: {link}')
+
+            if 'comics_id' in result and result['comics_id']:
+                # Torrent download for Libgen
+                torrent_name = str(int(int(result['comics_id']) / 1000) * 1000)
+                torrent_link = f"{Constants.LIBGEN_SITE_URL}/torrents/comics/c_{torrent_name}.torrent"
+
+                downloads = [
+                    TorrentDownload(
+                        download_link=torrent_link,
+                        volume_id=volume_id,
+                        covered_issues=result.get('issue_number'),
+                        source_type=DownloadSource.LIBGENPLUS,
+                        source_name='Libgen+',
+                        web_link=link,
+                        web_title=None,
+                        web_sub_title=None,
+                        forced_match=force_match,
+                        external_client=None,
+                        external_id=None,
+                        filename=f"{torrent_name}/{result.get('md5')}.{result.get('extension')}",
+                        releaser=result.get('releaser'),
+                        scan_type=result.get('scan_type'),
+                        resolution=result.get('resolution'),
+                        dpi=result.get('dpi'),
+                        extension=result.get('extension'),
+                    )
+                ]
+            else:
+                # Direct download for Libgen
+                download_link = link.replace('file.php', 'get.php')
+
+                downloads = [
+                    DirectDownload(
+                        download_link=download_link,
+                        volume_id=volume_id,
+                        covered_issues=result.get('issue_number'),
+                        source_type=DownloadSource.LIBGENPLUS,
+                        source_name='Libgen+',
+                        web_link=link,
+                        web_title=None,
+                        web_sub_title=None,
+                        releaser=result.get('releaser'),
+                        scan_type=result.get('scan_type'),
+                        resolution=result.get('resolution'),
+                        dpi=result.get('dpi'),
+                        extension=result.get('extension'),
+                        forced_match=force_match,
+                    )
+                ]
 
         result = self.__prepare_downloads_for_queue(
             downloads,

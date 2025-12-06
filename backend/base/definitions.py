@@ -113,6 +113,9 @@ class Constants:
     GC_SOURCE_TERM = "GetComics"
     "The name used for GetComics as a download source"
 
+    # Libgen+ (fetched/maintained upstream in the React fork; keep current known-good URL)
+    LIBGEN_SITE_URL = "https://libgen.is"
+
     MEGA_API_URL = "https://eu.api.mega.co.nz/cs"
     "The base URL of the Mega API"
 
@@ -447,6 +450,7 @@ class GCDownloadSource(BaseEnum):
     "A torrent magnet link directly on the webpage"
     NZBHYDRA2 = "NZBHydra2"
     "Usenet downloads via NZBHydra2 indexer"
+    LIBGENPLUS = "Libgen+"
 
 
 # autopep8: off
@@ -483,6 +487,7 @@ class DownloadSource(BaseEnum):
     "A torrent magnet link directly on the webpage"
     USENET = "Usenet"
     "Usenet downloads via NZBHydra2 and Sabnzbd"
+    LIBGENPLUS = "Libgen+"
 
 
 class DownloadState(BaseEnum):
@@ -710,6 +715,7 @@ class IssueData:
 class VolumeData:
     id: int
     comicvine_id: int
+    libgen_series_id: Union[str, None]
     title: str
     alt_title: Union[str, None]
     year: int

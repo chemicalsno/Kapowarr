@@ -1,7 +1,7 @@
 // All available download sources
 const ALL_SOURCES = [
-	'Mega', 'MediaFire', 'WeTransfer', 'Pixeldrain', 
-	'GetComics', 'GetComics (torrent)', 'NZBHydra2'
+	'Mega', 'MediaFire', 'WeTransfer', 'Pixeldrain',
+	'GetComics', 'GetComics (torrent)', 'NZBHydra2', 'Libgen+'
 ];
 
 function fillSettings(api_key) {

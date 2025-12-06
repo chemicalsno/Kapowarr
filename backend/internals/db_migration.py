@@ -799,6 +799,44 @@ def _migrate_add_alt_title_to_volumes():
 
 
 @DatabaseMigrationHandler.register_handler(29)
+def _migrate_add_libgen_metadata_columns():
+    """
+    Add Libgen-related metadata fields and external_id tracking.
+    Mirrors upstream React fork schema changes for Libgen+ support.
+    """
+    get_db().executescript("""
+        BEGIN TRANSACTION;
+        PRAGMA defer_foreign_keys = ON;
+
+        ALTER TABLE volumes
+            ADD COLUMN libgen_series_id VARCHAR(255);
+
+        ALTER TABLE files
+            ADD COLUMN releaser VARCHAR(255);
+        ALTER TABLE files
+            ADD COLUMN scan_type VARCHAR(255);
+        ALTER TABLE files
+            ADD COLUMN resolution VARCHAR(255);
+        ALTER TABLE files
+            ADD COLUMN dpi VARCHAR(255);
+
+        ALTER TABLE download_queue
+            ADD COLUMN releaser VARCHAR(255);
+        ALTER TABLE download_queue
+            ADD COLUMN scan_type VARCHAR(255);
+        ALTER TABLE download_queue
+            ADD COLUMN resolution VARCHAR(255);
+        ALTER TABLE download_queue
+            ADD COLUMN dpi VARCHAR(255);
+        ALTER TABLE download_queue
+            ADD COLUMN external_id VARCHAR(255);
+
+        COMMIT;
+    """)
+    return
+
+
+@DatabaseMigrationHandler.register_handler(29)
 def _migrate_none_to_string_flare_solverr():
     cursor = get_db()
     value = cursor.execute("""

@@ -84,6 +84,10 @@ class PublicSettingsValues:
     service_preference: CommaList = field(default_factory=lambda: CommaList(
         (s.value for s in GCDownloadSource._member_map_.values())
     ))
+    enable_libgen: bool = True
+    auto_search_torrents: bool = False
+    include_cover_only_files: bool = False
+    include_scanned_books: bool = False
     download_folder: str = folder_path('temp_downloads')
     concurrent_direct_downloads: int = 1
     failing_download_timeout: int = 0

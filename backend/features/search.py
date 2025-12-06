@@ -3,14 +3,18 @@
 from asyncio import gather, run
 from typing import Dict, List, Tuple, Union
 
+from libgencomics import LibgenSearch, ResultFile
+
 from backend.base.definitions import (Constants, GCDownloadSource,
                                       QUERY_FORMATS, MatchedSearchResultData,
                                       SearchResultData, SearchSource,
                                       SpecialVersion)
+from backend.base.file_extraction import extract_filename_data
 from backend.base.helpers import (AsyncSession, check_overlapping_issues,
                                   extract_year_from_date, force_range,
                                   get_subclasses)
 from backend.base.logging import LOGGER
+from backend.implementations.comicvine import ComicVine
 from backend.implementations.getcomics import search_getcomics
 from backend.implementations.matching import check_search_result_match
 from backend.implementations.usenet_indexers.hydra import HydraSearchSource
@@ -22,6 +26,7 @@ SOURCE_TO_DOWNLOAD_SOURCE = {
     Constants.GC_SOURCE_TERM: GCDownloadSource.GETCOMICS.value,
     'NZBHydra2': GCDownloadSource.NZBHYDRA2.value,
     'Usenet': GCDownloadSource.NZBHYDRA2.value,
+    'Libgen+': GCDownloadSource.LIBGENPLUS.value,
 }
 
 
@@ -200,6 +205,125 @@ class SearchGetComics(SearchSource):
 
     async def search(self, session: AsyncSession) -> List[SearchResultData]:
         return await search_getcomics(session, self.query)
+
+
+class SearchLibgenPlus(SearchSource):
+    source_name = 'Libgen+'
+
+    def _build_result_from_file(
+        self,
+        file_result: ResultFile,
+        volume: Volume,
+        settings: Settings
+    ) -> List[SearchResultData]:
+        results: List[SearchResultData] = []
+
+        filename = file_result.filename
+        if not filename:
+            return results
+
+        efd = extract_filename_data(filename)
+
+        # Filter cover-only
+        if (
+            not settings.sv.include_cover_only_files
+            and ((file_result.get("scan_content") or "") == "cover only" or file_result.pages == 1)
+        ):
+            return results
+
+        # Filter scanned books
+        if (
+            not settings.sv.include_scanned_books
+            and (file_result.scan_type or "") != "digital"
+        ):
+            return results
+
+        results.append(
+            SearchResultData(
+                series=volume.get_data().title,
+                year=volume.get_data().year,
+                volume_number=efd["volume_number"],
+                special_version=efd["special_version"],
+                issue_number=efd["issue_number"],
+                annual=efd["annual"],
+                is_image_file=efd["is_image_file"],
+                is_metadata_file=efd["is_metadata_file"],
+                link=f"{Constants.LIBGEN_SITE_URL}/file.php?md5={file_result.get('md5')}",
+                display_title=filename,
+                source="Libgen+",
+                filesize=file_result.filesize,
+                pages=file_result.pages or 0,
+                releaser=file_result.releaser or "",
+                scan_type=file_result.scan_type or "",
+                resolution=file_result.resolution or "",
+                dpi=file_result.dpi or "",
+                extension=file_result.extension or "",
+                comics_id=int(file_result.get("comics_id"))
+                if file_result.get("comics_id") is not None
+                else None,
+                md5=file_result.get("md5"),
+                web_sub_title=None,
+            )
+        )
+        return results
+
+    async def search(self, session: AsyncSession) -> List[SearchResultData]:
+        settings = Settings()
+        if not settings.sv.enable_libgen:
+            return []
+
+        volume = self.volume
+        volume_data = volume.get_data()
+
+        # Parse libgen_series_id from comma-separated string to list of ints
+        libgen_series_id: Union[List[int], None] = None
+        if volume_data.libgen_series_id:
+            libgen_series_id = list(map(int, volume_data.libgen_series_id.split(',')))
+
+        issue_number = (
+            int(self.issue_number)
+            if isinstance(self.issue_number, float) and self.issue_number.is_integer()
+            else self.issue_number
+        )
+
+        file_results: list[ResultFile] = await LibgenSearch().search_comicvine_id(
+            query=self.query,
+            api_key=settings.sv.comicvine_api_key,
+            id=volume_data.comicvine_id,
+            issue_number=issue_number,
+            libgen_series_id=libgen_series_id,
+            libgen_site_url=Constants.LIBGEN_SITE_URL,
+            flaresolverr_url=settings.sv.flaresolverr_base_url
+            if settings.sv.flaresolverr_base_url
+            else None,
+            cv_cache=ComicVine().cache,
+        )
+
+        results: List[SearchResultData] = []
+        resulting_libgen_series_ids: set[str] = set()
+
+        for file_result in file_results:
+            # Track libgen series IDs found in results
+            issue = file_result.issue
+            if issue is not None:
+                try:
+                    if isinstance(issue.series.id, int):
+                        resulting_libgen_series_ids.add(str(issue.series.id))
+                except Exception:
+                    pass
+
+            results.extend(self._build_result_from_file(file_result, volume, settings))
+
+        # Auto-update libgen_series_id if we found new ones
+        if (
+            not volume_data.libgen_series_id
+            and len(resulting_libgen_series_ids) != 0
+        ):
+            volume.update({
+                'libgen_series_id': ','.join(resulting_libgen_series_ids),
+            })
+
+        return results
 
 
 def _get_enabled_search_sources() -> list:
