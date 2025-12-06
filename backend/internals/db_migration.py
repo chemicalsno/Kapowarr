@@ -798,7 +798,7 @@ def _migrate_add_alt_title_to_volumes():
     return
 
 
-@DatabaseMigrationHandler.register_handler(29)
+@DatabaseMigrationHandler.register_handler(46)
 def _migrate_add_libgen_metadata_columns():
     """
     Add Libgen-related metadata fields and external_id tracking.
