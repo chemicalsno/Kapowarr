@@ -94,6 +94,13 @@ ipython_config.py
 # PEP 582; used by e.g. github.com/David-OConnor/pyflow
 __pypackages__/
 
+# uv / virtual env tooling
+.uv/
+.uv.lock
+.venv/
+uv.lock
+.python-version
+
 # Celery stuff
 celerybeat-schedule
 celerybeat.pid
