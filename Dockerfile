@@ -7,18 +7,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /tmp
+WORKDIR /app
+
+COPY requirements.txt .
+
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-RUN pip install --no-cache-dir .
-
-RUN useradd -d /app --create-home kapowarr
-
-WORKDIR /app
+RUN useradd kapowarr && chown -R kapowarr:kapowarr /app
 
 USER kapowarr
 
 EXPOSE 5656
 
-CMD ["python3", "/tmp/Kapowarr.py"]
+CMD ["python3", "Kapowarr.py"]
