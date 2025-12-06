@@ -250,7 +250,8 @@ class DownloadHandler(metaclass=Singleton):
             )
 
         # Detect crashed downloads: DOWNLOADING state but thread is dead
-        for download in self.queue:
+        # Iterate over a copy since we may modify the queue
+        for download in self.queue[:]:
             if (
                 not isinstance(download, ExternalDownload)
                 and download.state == DownloadState.DOWNLOADING_STATE
