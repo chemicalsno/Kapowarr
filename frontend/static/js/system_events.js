@@ -15,16 +15,6 @@ const EventsEls = {
 		previous: document.querySelector('#previous-page'),
 		next: document.querySelector('#next-page'),
 		number: document.querySelector('#page-number')
-	},
-	modal: {
-		container: document.querySelector('#event-modal'),
-		close: document.querySelector('#close-modal'),
-		time: document.querySelector('#modal-time'),
-		level: document.querySelector('#modal-level'),
-		source: document.querySelector('#modal-source'),
-		process: document.querySelector('#modal-process'),
-		thread: document.querySelector('#modal-thread'),
-		message: document.querySelector('#modal-message')
 	}
 };
 
@@ -65,13 +55,6 @@ function buildParams() {
 	return params;
 }
 
-function attachRowActions(row, record) {
-	const button = row.querySelector('button');
-	if (!button) return;
-
-	button.onclick = () => openModal(record);
-}
-
 function renderEvents(records) {
 	EventsEls.table.innerHTML = '';
 	latestRecords = records;
@@ -96,7 +79,6 @@ function renderEvents(records) {
 		entry.querySelector('.source-column').innerText = record.source || '-';
 		entry.querySelector('.message-column').innerText = record.message.split('\n')[0];
 
-		attachRowActions(entry, record);
 		EventsEls.table.appendChild(entry);
 	});
 }
@@ -150,19 +132,6 @@ function bootstrapEvents(apiKey) {
 
 	EventsEls.pageTurner.previous.onclick = () => changePage(-1, apiKey);
 	EventsEls.pageTurner.next.onclick = () => changePage(1, apiKey);
-
-	EventsEls.modal.close.onclick = closeModal;
-	EventsEls.modal.container.addEventListener('click', event => {
-		if (event.target === EventsEls.modal.container) {
-			closeModal();
-		}
-	});
-
-	document.addEventListener('keydown', event => {
-		if (event.key === 'Escape' && !EventsEls.modal.container.classList.contains('hidden')) {
-			closeModal();
-		}
-	});
 
 	fillEvents(apiKey);
 }
