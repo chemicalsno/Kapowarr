@@ -17,10 +17,6 @@ RUN pip3 install --break-system-packages --no-cache-dir -r requirements.txt
 
 COPY . .
 
-RUN \
-    chown -R abc:abc /app \
-    && chmod -R 755 /app
-
 EXPOSE 5656
 
 ENV PUID=1000 \
