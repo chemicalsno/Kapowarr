@@ -513,8 +513,8 @@ class Sabnzbd(BaseExternalClient):
 
                 # CRITICAL: Include storage path when completed
                 if state == DownloadState.IMPORTING_STATE:
-                    # SABnzbd uses 'path' field in history, not 'storage'
-                    storage_path = entry.get('path', '') or entry.get('storage', '')
+                    # SABnzbd uses 'storage' field for completed files, 'path' is the incomplete folder
+                    storage_path = entry.get('storage', '') or entry.get('path', '')
                     if storage_path:
                         # Validate storage path exists
                         if not os.path.isabs(storage_path):
