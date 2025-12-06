@@ -1,6 +1,6 @@
 import unittest
 from unittest.mock import Mock, patch, MagicMock
-from io import BytesIO
+from datetime import datetime
 from base64 import b64encode
 
 from flask import Flask
@@ -28,7 +28,7 @@ class OPDSTestCase(unittest.TestCase):
         self.mock_settings.opds_authentication = False
         self.mock_settings.opds_username = 'test'
         self.mock_settings.opds_password = 'password'
-        self.mock_settings.api_key = 'test_api_key'
+        self.mock_settings.opds_api_key = 'test_api_key'
 
         # Mock database
         self.db_patcher = patch('backend.features.opds.get_db')
@@ -45,6 +45,29 @@ class OPDSTestCase(unittest.TestCase):
         """Generate Basic Auth header."""
         credentials = b64encode(f'{username}:{password}'.encode()).decode()
         return {'Authorization': f'Basic {credentials}'}
+
+    def set_db_results(self, results):
+        """Configure sequential database execute responses.
+
+        Args:
+            results (List[dict]): Each dict can contain `fetchone` and/or `fetchall`
+                values that should be returned by that execute call.
+        """
+        def _make_result(fetchone=None, fetchall=None):
+            result = Mock()
+            if fetchone is not None:
+                result.fetchone.return_value = fetchone
+            if fetchall is not None:
+                result.fetchall.return_value = fetchall
+            return result
+
+        self.mock_db.execute.side_effect = [
+            _make_result(**res) for res in results
+        ]
+
+    def set_single_db_result(self, fetchone=None, fetchall=None):
+        """Shortcut for configuring a single execute result."""
+        self.set_db_results([{'fetchone': fetchone, 'fetchall': fetchall}])
 
 
 class TestOPDSAuthentication(OPDSTestCase):
@@ -120,9 +143,7 @@ class TestOPDSRootCatalog(OPDSTestCase):
     def test_root_catalog_structure(self):
         """Test that root catalog has correct structure."""
         # Mock volume count
-        cursor = Mock()
-        cursor.execute.return_value.fetchone.return_value = [42]
-        self.mock_db.execute.return_value = cursor
+        self.set_single_db_result(fetchone=[42])
 
         response = self.client.get('/opds/')
         self.assertEqual(response.status_code, 200)
@@ -135,11 +156,22 @@ class TestOPDSRootCatalog(OPDSTestCase):
         self.assertIn('Recent Additions', data)
         self.assertIn('All Volumes (42)', data)
 
+        # Cache headers present
+        self.assertIn('ETag', response.headers)
+        self.assertIn('Last-Modified', response.headers)
+        self.assertIn('Cache-Control', response.headers)
+
+        # Conditional GET should return 304
+        response_304 = self.client.get(
+            '/opds/',
+            headers={'If-None-Match': response.headers['ETag']}
+        )
+        self.assertEqual(response_304.status_code, 304)
+        self.assertEqual(response_304.data, b'')
+
     def test_root_catalog_links(self):
         """Test that root catalog has required OPDS links."""
-        cursor = Mock()
-        cursor.execute.return_value.fetchone.return_value = [0]
-        self.mock_db.execute.return_value = cursor
+        self.set_single_db_result(fetchone=[0])
 
         response = self.client.get('/opds/')
         data = response.data.decode('utf-8')
@@ -155,9 +187,10 @@ class TestOPDSVolumes(OPDSTestCase):
 
     def test_volumes_empty(self):
         """Test volumes endpoint with no volumes."""
-        cursor = Mock()
-        cursor.execute.return_value.fetchall.return_value = []
-        self.mock_db.execute.return_value = cursor
+        self.set_db_results([
+            {'fetchone': [0]},
+            {'fetchall': []}
+        ])
 
         response = self.client.get('/opds/volumes')
         self.assertEqual(response.status_code, 200)
@@ -167,14 +200,15 @@ class TestOPDSVolumes(OPDSTestCase):
 
     def test_volumes_list(self):
         """Test volumes endpoint with volumes."""
-        # Mock volumes data: (id, title, year, file_count)
-        cursor = Mock()
-        cursor.execute.return_value.fetchall.return_value = [
+        volumes = [
             (1, 'Batman', 1940, 25),
             (2, 'Spider-Man', 1963, 50),
             (3, 'X-Men', None, 10)
         ]
-        self.mock_db.execute.return_value = cursor
+        self.set_db_results([
+            {'fetchone': [len(volumes)]},
+            {'fetchall': volumes}
+        ])
 
         response = self.client.get('/opds/volumes')
         self.assertEqual(response.status_code, 200)
@@ -190,9 +224,14 @@ class TestOPDSVolumes(OPDSTestCase):
         """Test volumes pagination."""
         # Create 60 volumes (more than PAGE_SIZE of 50)
         volumes = [(i, f'Volume {i}', 2020, 10) for i in range(60)]
-        cursor = Mock()
-        cursor.execute.return_value.fetchall.return_value = volumes
-        self.mock_db.execute.return_value = cursor
+        first_page = volumes[:50]
+        second_page = volumes[50:]
+
+        # First page request
+        self.set_db_results([
+            {'fetchone': [len(volumes)]},
+            {'fetchall': first_page}
+        ])
 
         response = self.client.get('/opds/volumes')
         data = response.data.decode('utf-8')
@@ -202,6 +241,11 @@ class TestOPDSVolumes(OPDSTestCase):
         self.assertNotIn('rel="previous"', data)
 
         # Second page
+        self.set_db_results([
+            {'fetchone': [len(volumes)]},
+            {'fetchall': second_page}
+        ])
+
         response = self.client.get('/opds/volumes?index=50')
         data = response.data.decode('utf-8')
         self.assertIn('rel="previous"', data)
@@ -212,25 +256,22 @@ class TestOPDSVolumeIssues(OPDSTestCase):
 
     def test_volume_not_found(self):
         """Test 404 when volume doesn't exist."""
-        cursor = Mock()
-        cursor.execute.return_value.fetchone.return_value = None
-        self.mock_db.execute.return_value = cursor
+        self.set_single_db_result(fetchone=None)
 
         response = self.client.get('/opds/volume/999')
         self.assertEqual(response.status_code, 404)
 
     def test_volume_issues_list(self):
         """Test listing issues for a volume."""
-        # Mock volume info and files
-        cursor = Mock()
-        cursor.execute.side_effect = [
-            Mock(fetchone=Mock(return_value=('Batman', 1940))),
-            Mock(fetchall=Mock(return_value=[
-                (1, '/path/to/batman-001.cbz', '1', 1.0, '2020-01-01'),
-                (2, '/path/to/batman-002.cbr', '2', 2.0, '2020-01-02'),
-            ]))
+        files = [
+            (1, '/path/to/batman-001.cbz', 1024, '1', 1.0, '2020-01-01'),
+            (2, '/path/to/batman-002.cbr', 2048, '2', 2.0, '2020-01-02'),
         ]
-        self.mock_db.execute.return_value = cursor
+        self.set_db_results([
+            {'fetchone': ('Batman', 1940)},
+            {'fetchone': [len(files)]},
+            {'fetchall': files}
+        ])
 
         response = self.client.get('/opds/volume/1')
         self.assertEqual(response.status_code, 200)
@@ -244,14 +285,14 @@ class TestOPDSVolumeIssues(OPDSTestCase):
 
     def test_volume_issues_acquisition_links(self):
         """Test that issues have proper acquisition links."""
-        cursor = Mock()
-        cursor.execute.side_effect = [
-            Mock(fetchone=Mock(return_value=('Test Volume', 2020))),
-            Mock(fetchall=Mock(return_value=[
-                (1, '/path/to/issue.cbz', '1', 1.0, None),
-            ]))
+        files = [
+            (1, '/path/to/issue.cbz', 4096, '1', 1.0, None),
         ]
-        self.mock_db.execute.return_value = cursor
+        self.set_db_results([
+            {'fetchone': ('Test Volume', 2020)},
+            {'fetchone': [len(files)]},
+            {'fetchall': files}
+        ])
 
         response = self.client.get('/opds/volume/1')
         data = response.data.decode('utf-8')
@@ -273,12 +314,14 @@ class TestOPDSSearch(OPDSTestCase):
 
     def test_search_results(self):
         """Test search with results."""
-        cursor = Mock()
-        cursor.execute.return_value.fetchall.return_value = [
-            (1, '/path/batman-1.cbz', 1, 'Batman', 1940, '1', 1.0),
-            (2, '/path/batman-2.cbz', 1, 'Batman', 1940, '2', 2.0),
+        files = [
+            (1, '/path/batman-1.cbz', 1000, 1, 'Batman', 1940, '1', 1.0),
+            (2, '/path/batman-2.cbz', 1100, 1, 'Batman', 1940, '2', 2.0),
         ]
-        self.mock_db.execute.return_value = cursor
+        self.set_db_results([
+            {'fetchone': [len(files)]},
+            {'fetchall': files}
+        ])
 
         response = self.client.get('/opds/search?query=Batman')
         self.assertEqual(response.status_code, 200)
@@ -320,6 +363,15 @@ class TestOPDSCover(OPDSTestCase):
         response = self.client.get('/opds/cover/1')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.mimetype, 'image/jpeg')
+        self.assertIn('ETag', response.headers)
+        self.assertIn('Last-Modified', response.headers)
+        self.assertIn('Cache-Control', response.headers)
+
+        response_304 = self.client.get(
+            '/opds/cover/1',
+            headers={'If-None-Match': response.headers['ETag']}
+        )
+        self.assertEqual(response_304.status_code, 304)
 
     @patch('backend.features.opds.HAS_PIL', False)
     def test_cover_without_pil(self):
@@ -422,9 +474,7 @@ class TestOPDSHelpers(OPDSTestCase):
 
     def test_absolute_urls(self):
         """Test that OPDS generates absolute URLs."""
-        cursor = Mock()
-        cursor.execute.return_value.fetchone.return_value = [0]
-        self.mock_db.execute.return_value = cursor
+        self.set_single_db_result(fetchone=[0])
 
         response = self.client.get('/opds/')
         data = response.data.decode('utf-8')
@@ -434,12 +484,14 @@ class TestOPDSHelpers(OPDSTestCase):
 
     def test_xml_escaping(self):
         """Test that special characters are properly escaped in XML."""
-        cursor = Mock()
-        cursor.execute.return_value.fetchall.return_value = [
+        rows = [
             (1, 'Batman & Robin', 2020, 10),
             (2, 'X-Men: <New>', 2021, 5),
         ]
-        self.mock_db.execute.return_value = cursor
+        self.set_db_results([
+            {'fetchone': [len(rows)]},
+            {'fetchall': rows}
+        ])
 
         response = self.client.get('/opds/volumes')
         data = response.data.decode('utf-8')
