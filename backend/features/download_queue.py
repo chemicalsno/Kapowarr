@@ -87,6 +87,7 @@ class DownloadHandler(metaclass=Singleton):
         ws.emit(status_event)
         if download.state == DownloadState.SHUTDOWN_STATE:
             PostProcessor.shutdown(download)
+            # Don't call _process_queue() on shutdown - app is closing
             return
 
         elif download.state == DownloadState.CANCELED_STATE:
@@ -235,28 +236,57 @@ class DownloadHandler(metaclass=Singleton):
     # region Queue Management
     def _process_queue(self) -> None:
         """
-        Handle the queue. In the case that there is something in the queue
-        and not the max amount of downloads are active, start a download.
-        This can safely be called at any point in time and with the queue in
-        any state.
+        Start direct downloads up to the configured concurrency limit.
+        Torrents/Usenet are already running their own threads when queued.
         """
-        active_downloads = 0
-        max_downloads = self.settings.sv.concurrent_direct_downloads
+        max_downloads = max(1, self.settings.sv.concurrent_direct_downloads)
+
+        def is_active(d: Download) -> bool:
+            return (
+                not isinstance(d, ExternalDownload)
+                and d.download_thread is not None
+                and d.download_thread.is_alive()
+            )
+
+        # Detect crashed downloads: DOWNLOADING state but thread is dead
         for download in self.queue:
-            if not isinstance(download, ExternalDownload):
-                if download.state == DownloadState.DOWNLOADING_STATE:
-                    active_downloads += 1
+            if (
+                not isinstance(download, ExternalDownload)
+                and download.state == DownloadState.DOWNLOADING_STATE
+                and download.download_thread is not None
+                and not download.download_thread.is_alive()
+            ):
+                LOGGER.error(
+                    f'Download {download.id} in DOWNLOADING state but thread is dead - marking as failed'
+                )
+                download.state = DownloadState.FAILED_STATE
+                PostProcessor.failed(download)
+                if download in self.queue:
+                    self.queue.remove(download)
+                WebSocket().emit(RemovedFromQueueEvent(download))
 
-                elif (
-                    download.state == DownloadState.QUEUED_STATE
-                    and active_downloads < max_downloads
-                ):
-                    if download.download_thread is not None:
-                        download.download_thread.start()
-                    active_downloads += 1
+        active_downloads = sum(1 for d in self.queue if is_active(d))
 
-                if active_downloads >= max_downloads:
-                    break
+        if active_downloads >= max_downloads:
+            return
+
+        for download in self.queue:
+            if isinstance(download, ExternalDownload):
+                continue
+
+            if (
+                download.state == DownloadState.QUEUED_STATE
+                and download.download_thread is not None
+                and not download.download_thread.is_alive()
+                and active_downloads < max_downloads
+            ):
+                # Mark as downloading before starting the thread so the counter stays accurate
+                download.state = DownloadState.DOWNLOADING_STATE
+                download.download_thread.start()
+                active_downloads += 1
+
+            if active_downloads >= max_downloads:
+                break
 
         return
 
