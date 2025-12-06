@@ -24,39 +24,25 @@
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	min-width: 3rem;
-	padding: .1rem .4rem;
-	border-radius: .35rem;
+	min-width: 0;
+	padding: 0 .35rem;
+	border-radius: .15rem;
 	font-size: .72rem;
-	font-weight: 600;
+	font-weight: 500;
 	text-transform: uppercase;
-	letter-spacing: .06em;
+	letter-spacing: .04em;
+	background: none;
+	color: inherit;
 }
 
 .level-column span[data-level="trace"],
-.level-column span[data-level="debug"] {
-	background: rgba(120, 161, 255, 0.18);
-	color: #7ca2ff;
-}
-
-.level-column span[data-level="info"] {
-	background: rgba(91, 224, 174, 0.18);
-	color: #5be0ae;
-}
-
-.level-column span[data-level="warn"] {
-	background: rgba(255, 197, 92, 0.2);
-	color: #f7c34f;
-}
-
-.level-column span[data-level="error"] {
-	background: rgba(255, 117, 117, 0.18);
-	color: #ff7575;
-}
-
+.level-column span[data-level="debug"],
+.level-column span[data-level="info"],
+.level-column span[data-level="warn"],
+.level-column span[data-level="error"],
 .level-column span[data-level="fatal"] {
-	background: rgba(255, 77, 77, 0.25);
-	color: #ff4d4d;
+	background: none;
+	color: inherit;
 }
 
 #events-empty {
