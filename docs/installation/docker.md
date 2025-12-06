@@ -273,6 +273,85 @@ Below you can find an example of running a Docker command and an example of a Do
 * We map the folder `/home/cas/other_media/Comics-2` to `/comics-2`.
 * In Kapowarr we'd then add `/comics-1` and `/comics-2` as root folders, but more information on that on the [Setup After Installation page](./setup_after_installation.md#root-folders).
 
+## Remote Path Mapping (for External Download Clients)
+
+!!! warning "Important for SABnzbd/NZBGet/qBittorrent/etc. Users"
+	If you're using an external download client (like SABnzbd, NZBGet, or qBittorrent) that runs in a **separate Docker container**, you **MUST** configure Remote Path Mappings. Otherwise, downloads will fail with errors like "storage path does not exist" or "no files to move".
+
+### Why Remote Path Mappings Are Needed
+
+When SABnzbd (or any external download client) and Kapowarr run in separate Docker containers, they see the same physical files through **different paths**:
+
+**Example Problem:**
+- Your Unraid/NAS host has files at: `/mnt/user/data/usenet/complete/comics/`
+- SABnzbd container sees them as: `/data/usenet/complete/comics/`
+- Kapowarr container sees them as: `/app/temp_downloads/`
+
+When SABnzbd reports "file downloaded to `/data/usenet/complete/comics/Batman.cbz`", Kapowarr can't find it because that path doesn't exist in Kapowarr's container!
+
+### How to Configure Remote Path Mapping
+
+1. **In Kapowarr's Web UI**: Navigate to `Settings` → `Download Clients`
+2. **Find your download client** (e.g., SABnzbd) in the list
+3. **Scroll to "Remote Path Mappings"** section at the bottom
+4. **Click "Add Remote Mapping"**
+5. **Configure the mapping**:
+	- **Client**: Select your download client from the dropdown
+	- **Remote Path**: The path as your download client sees it (e.g., `/data/usenet/complete/comics/`)
+	- **Local Path**: The path as Kapowarr sees it (e.g., `/app/temp_downloads/`)
+6. **Click Save**
+
+### Finding the Correct Paths
+
+To find the paths to use in the mapping:
+
+#### Remote Path (Download Client's View)
+Check your download client's configuration:
+
+- **SABnzbd**: Settings → Folders → "Completed Download Folder"
+- **NZBGet**: Settings → Paths → "DestDir"
+- **qBittorrent**: Options → Downloads → "Default Save Path"
+
+#### Local Path (Kapowarr's View)
+Look at your Docker volume mapping for Kapowarr's download folder. This is the **container path** (right side of the mapping) that corresponds to your download client's complete folder.
+
+From the [Docker CLI example above](#example):
+```bash
+-v "/home/cas/media/Downloads:/app/temp_downloads"
+```
+The local path would be `/app/temp_downloads/`
+
+### Complete Example
+
+**Scenario**: Using SABnzbd and Kapowarr in separate containers on Unraid
+
+**Host (Unraid) Setup:**
+- Physical location: `/mnt/user/data/usenet/complete/comics/`
+
+**SABnzbd Container:**
+- Volume mapping: `-v "/mnt/user/data:/data"`
+- SABnzbd sees complete downloads at: `/data/usenet/complete/comics/`
+
+**Kapowarr Container:**
+- Volume mapping: `-v "/mnt/user/data/usenet/complete/comics:/app/temp_downloads"`
+- Kapowarr sees the same location as: `/app/temp_downloads/`
+
+**Remote Path Mapping Configuration:**
+- Client: SABnzbd
+- Remote Path: `/data/usenet/complete/comics/`
+- Local Path: `/app/temp_downloads/`
+
+Now when SABnzbd reports a download at `/data/usenet/complete/comics/Batman.cbz`, Kapowarr will translate it to `/app/temp_downloads/Batman.cbz` and successfully find the file!
+
+### Troubleshooting
+
+If downloads still fail after configuring the mapping:
+
+1. **Verify paths end with trailing slashes**: Both Remote and Local paths should end with `/`
+2. **Check Docker volume mappings**: Ensure the physical location is mounted in both containers
+3. **Check permissions**: Both containers need read/write access to the shared location
+4. **Check logs**: Look for "Usenet download completed: /app/temp_downloads/..." messages (success) vs "storage path does not exist" errors (failed)
+
 ## Update install
 
 Below you can find instructions on how to update an install. In order for the database to properly migrate, upgrade minor version by minor version (i.e. v1.0.0, v1.1.0, v1.2.0, etc.).

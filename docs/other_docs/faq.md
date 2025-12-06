@@ -41,6 +41,17 @@ The two most common causes for this are:
 - Not having a valid [ComicVine API key](../settings/general.md#comic-vine-api-key) to be able to match or look up volumes.
 - Not having a [root folder](../settings/mediamanagement.md#root-folders) defined.
 
+## Downloads
+
+### Why are my downloads failing?
+
+If you're experiencing issues with downloads not completing, files not being found, or getting errors like "storage path does not exist", see the [Troubleshooting Downloads](./troubleshooting_downloads.md) guide for detailed solutions.
+
+Common causes:
+- Missing [Remote Path Mapping](../installation/docker.md#remote-path-mapping-for-external-download-clients) configuration (required for external download clients in separate Docker containers)
+- Incorrect Docker volume mappings
+- Permission issues
+
 ## Matching
 
 A lot of the problems with matching are caused by [the Special Version of the volume](../general_info/matching.md#special-version) not being determined correctly. This is the first thing that should be checked, in case of problems with matching.

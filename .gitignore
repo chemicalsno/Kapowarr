@@ -136,10 +136,9 @@ dmypy.json
 # vs-code
 *.code-workspace
 
-# Downloads
 temp_downloads/*
 
-# Project management files
 release*.sh
 scripts/*
 *design.md
+.DS_Store
