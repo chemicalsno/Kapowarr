@@ -239,7 +239,8 @@ class DownloadHandler(metaclass=Singleton):
         Start direct downloads up to the configured concurrency limit.
         Torrents/Usenet are already running their own threads when queued.
         """
-        max_downloads = max(1, self.settings.sv.concurrent_direct_downloads)
+        # Limit between 1 and 100 to prevent resource exhaustion
+        max_downloads = max(1, min(self.settings.sv.concurrent_direct_downloads, 100))
 
         def is_active(d: Download) -> bool:
             return (
@@ -272,6 +273,17 @@ class DownloadHandler(metaclass=Singleton):
 
         for download in self.queue:
             if isinstance(download, ExternalDownload):
+                continue
+
+            # Detect anomalous state: queued but thread already running
+            if (
+                download.state == DownloadState.QUEUED_STATE
+                and download.download_thread is not None
+                and download.download_thread.is_alive()
+            ):
+                LOGGER.warning(
+                    f'Download {download.id} in QUEUED state but thread already alive - skipping'
+                )
                 continue
 
             if (
