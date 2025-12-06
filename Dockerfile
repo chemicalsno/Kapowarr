@@ -17,6 +17,15 @@ RUN pip3 install --break-system-packages --no-cache-dir -r requirements.txt
 
 COPY . .
 
+RUN addgroup --system abc && adduser --system --ingroup abc abc
+
+RUN \
+    chown -R abc:abc /app \
+    && chmod -R 755 /app
+
+USER abc
+
+CMD ["python", "/app/Kapowarr.py"]
 EXPOSE 5656
 
 ENV PUID=1000 \
