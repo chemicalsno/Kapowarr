@@ -299,6 +299,60 @@
 	background-color: var(--error-color);
 }
 
+/* NZBHydra test */
+.hydra-test-row {
+	display: inline-flex;
+	align-items: center;
+	gap: .75rem;
+	margin-top: .25rem;
+}
+
+.test-button-compact {
+	padding: .4rem .9rem;
+	border-radius: 4px;
+	border: 1px solid var(--border-color);
+	background: var(--foreground-color);
+	color: var(--text-color);
+	cursor: pointer;
+	font-weight: 600;
+}
+
+.test-button-compact:disabled {
+	opacity: 0.6;
+	cursor: default;
+}
+
+.hydra-status {
+	display: inline-flex;
+	align-items: center;
+	gap: .35rem;
+	padding: .3rem .6rem;
+	border-radius: 999px;
+	border: 1px solid var(--border-color);
+	background: var(--foreground-color);
+	font-size: .95rem;
+}
+
+.hydra-dot {
+	width: .65rem;
+	height: .65rem;
+	border-radius: 50%;
+	background: var(--border-color);
+	display: inline-block;
+}
+
+.hydra-status.hydra-success .hydra-dot {
+	background: var(--success-color);
+}
+
+.hydra-status.hydra-error .hydra-dot {
+	background: var(--error-color);
+}
+
+.hydra-status.hydra-unknown .hydra-dot {
+	background: var(--border-color);
+}
+
 .window-footer > button[type="submit"] {
 	background-color: var(--success-color);
 }

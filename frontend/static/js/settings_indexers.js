@@ -20,25 +20,31 @@ function updateHydraStatus(result) {
 	const pill = document.querySelector('#hydra-status-pill');
 	if (!pill) return;
 
-	// Clear previous state classes (if any were added by CSS)
-	pill.classList.remove('success', 'error');
+	// Reset classes
+	pill.classList.remove('hydra-success', 'hydra-error', 'hydra-unknown');
 
 	let text = 'NZBHydra2 status: Unknown';
+	let statusClass = 'hydra-unknown';
+
 	if (!result.configured) {
 		text = 'NZBHydra2 status: Not configured';
-		pill.classList.add('error');
+		statusClass = 'hydra-error';
 	} else if (result.healthy) {
 		text = 'NZBHydra2 status: OK';
-		pill.classList.add('success');
+		statusClass = 'hydra-success';
 	} else {
 		text = 'NZBHydra2 status: Error';
-		pill.classList.add('error');
+		statusClass = 'hydra-error';
 	}
 
-	if (result.message) {
-		pill.title = result.message;
+	pill.classList.add(statusClass);
+	pill.title = result.message || '';
+	const textSpan = pill.querySelector('.hydra-status-text');
+	if (textSpan) {
+		textSpan.textContent = text;
+	} else {
+		pill.textContent = text;
 	}
-	pill.textContent = text;
 }
 
 function loadHydraStatus(api_key) {
