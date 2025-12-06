@@ -10,6 +10,7 @@ RUN \
         git \
         curl \
         xz-utils \
+        bash \
     && curl -L -o /tmp/s6-overlay-noarch.tar.xz \
         https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-noarch.tar.xz \
     && curl -L -o /tmp/s6-overlay.tar.xz \
