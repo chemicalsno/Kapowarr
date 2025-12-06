@@ -8,14 +8,16 @@ Based on Mylar3's OPDS implementation (GPL-3.0 compatible).
 """
 
 from base64 import b64decode
-from datetime import datetime
+from datetime import datetime, timezone
 from hashlib import sha1
 from io import BytesIO
-from os.path import basename, exists, splitext
+from os.path import basename, exists, getmtime, splitext
 from re import sub
 from sqlite3 import OperationalError
 from typing import Any, Dict, List, Optional, Union
 from urllib.parse import quote_plus
+
+from email.utils import format_datetime, parsedate_to_datetime
 
 import requests
 from flask import Blueprint, Response, render_template, request, send_file
