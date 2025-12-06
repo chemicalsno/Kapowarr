@@ -147,6 +147,7 @@ docker-compose.yml
 
 # Various files
 *.md
+!README.md
 
 # Tests
 tests/
