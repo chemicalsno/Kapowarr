@@ -23,10 +23,13 @@
 {% block main %}
 <main class="events-page">
 	<section class="events-toolbar" aria-label="Event toolbar">
-		<div class="toolbar-left">
-			{{ icon_button("refresh-button", "Refresh events", "refresh.svg", "Refresh") }}
+		<div class="toolbar-actions">
+			<button id="refresh-button" class="toolbar-button" aria-label="Refresh events">
+				<img src="{{ url_for('static', filename='img/refresh.svg') }}" alt="" aria-hidden="true">
+				<span>Refresh</span>
+			</button>
 		</div>
-		<div class="toolbar-right">
+		<div class="toolbar-filters">
 			<label for="level-filter">Level</label>
 			<select id="level-filter">
 				<option value="">All</option>

@@ -1,56 +1,81 @@
 main.events-page {
-	padding: 1rem 1.25rem;
+	padding: 1rem 1.25rem 0 1.25rem;
 	color: var(--text-color);
 	display: flex;
 	flex-direction: column;
-	gap: 1.25rem;
+	gap: 1rem;
 }
 
 .events-toolbar {
 	display: flex;
-	flex-wrap: wrap;
 	align-items: center;
 	justify-content: space-between;
-	padding: .75rem 1rem;
-	border: 1px solid var(--border-color);
-	border-radius: .5rem;
-	background: rgba(20, 22, 30, 0.9);
+	gap: 1rem;
+	padding-bottom: .75rem;
+	border-bottom: 1px solid var(--border-color);
 }
 
-.events-toolbar .toolbar-left,
-.events-toolbar .toolbar-right {
+.toolbar-actions {
 	display: flex;
 	align-items: center;
-	gap: .75rem;
+	gap: .5rem;
+}
+
+.toolbar-filters {
+	display: flex;
+	align-items: center;
+	gap: .5rem;
+}
+
+.toolbar-button {
+	display: inline-flex;
+	align-items: center;
+	gap: .35rem;
+	background: transparent;
+	border: 1px solid var(--border-color);
+	border-radius: .3rem;
+	padding: .35rem .75rem;
+	color: inherit;
+	font-size: .9rem;
+	cursor: pointer;
+}
+
+.toolbar-button img {
+	width: 1rem;
+	height: 1rem;
+}
+
+.toolbar-button:hover {
+	background: rgba(255, 255, 255, 0.05);
 }
 
 .events-toolbar label {
-	font-size: .85rem;
+	font-size: .8rem;
 	text-transform: uppercase;
-	letter-spacing: .1em;
+	letter-spacing: .08em;
 	color: var(--muted-text-color, #9da3b0);
 }
 
 .events-toolbar select {
-	background: rgba(0, 0, 0, 0.25);
+	background: transparent;
 	border: 1px solid var(--border-color);
 	color: var(--text-color);
-	padding: .35rem .75rem;
-	border-radius: .35rem;
-	font-size: .95rem;
+	padding: .35rem .6rem;
+	border-radius: .25rem;
+	font-size: .9rem;
 }
 
 .events-table {
 	display: flex;
 	flex-direction: column;
-	gap: .75rem;
+	gap: .5rem;
 }
 
 .table-wrapper {
 	overflow-x: auto;
 	border: 1px solid var(--border-color);
-	border-radius: .5rem;
-	background: rgba(15, 17, 24, 0.85);
+	border-radius: .35rem;
+	background: rgba(10, 12, 18, 0.75);
 }
 
 table {
@@ -66,14 +91,14 @@ th, td {
 th {
 	text-transform: uppercase;
 	font-size: .7rem;
-	letter-spacing: .15em;
+	letter-spacing: .12em;
 	color: var(--muted-text-color, #8d91a0);
 	border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 td {
 	border-top: 1px solid rgba(255, 255, 255, 0.04);
-	font-size: .93rem;
+	font-size: .92rem;
 }
 
 .time-column {
@@ -244,17 +269,12 @@ body.modal-open {
 
 @media (max-width: 768px) {
 	main.events-page {
-		padding: .75rem;
+		padding: .75rem .75rem 0 .75rem;
 	}
 
 	.events-toolbar {
 		flex-direction: column;
 		align-items: flex-start;
-		gap: .5rem;
-	}
-
-	.events-toolbar .toolbar-right {
-		width: 100%;
 	}
 
 	.message-column {
