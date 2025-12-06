@@ -16,6 +16,41 @@ function fillSettings(api_key) {
 	});
 };
 
+function updateHydraStatus(result) {
+	const pill = document.querySelector('#hydra-status-pill');
+	if (!pill) return;
+
+	// Clear previous state classes (if any were added by CSS)
+	pill.classList.remove('success', 'error');
+
+	let text = 'NZBHydra2 status: Unknown';
+	if (!result.configured) {
+		text = 'NZBHydra2 status: Not configured';
+		pill.classList.add('error');
+	} else if (result.healthy) {
+		text = 'NZBHydra2 status: OK';
+		pill.classList.add('success');
+	} else {
+		text = 'NZBHydra2 status: Error';
+		pill.classList.add('error');
+	}
+
+	if (result.message) {
+		pill.title = result.message;
+	}
+	pill.textContent = text;
+}
+
+function loadHydraStatus(api_key) {
+	fetchAPI('/indexers/hydra/status', api_key)
+	.then(json => {
+		updateHydraStatus(json.result || {});
+	})
+	.catch(() => {
+		updateHydraStatus({ configured: false, healthy: false, message: 'Failed to query NZBHydra2 status' });
+	});
+}
+
 function saveSettings(api_key) {
 	document.querySelector("#save-button p").innerText = 'Saving';
 	const data = {
@@ -93,6 +128,7 @@ function testNZBHydra(api_key) {
 usingApiKey()
 .then(api_key => {
 	fillSettings(api_key);
+	loadHydraStatus(api_key);
 
 	document.querySelector('#save-button').onclick = e => saveSettings(api_key);
 	document.querySelector('#test-nzbhydra-button').onclick = e => testNZBHydra(api_key);

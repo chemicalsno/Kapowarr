@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% from "base.html" import icon_button, page_turner %}
+{% block title %}Events{% endblock %}
+{% block css %}
+	<link rel="stylesheet" href="{{ url_for('static', filename='css/system_events.css') }}">
+{% endblock %}
+{% block js %}
+	<script src="{{ url_for('static', filename='js/system_events.js') }}" defer></script>
+{% endblock %}
+
+{% block pre_build_rows %}
+<tr class="event-row">
+	<td class="time-column"></td>
+	<td class="level-column"><span></span></td>
+	<td class="source-column"></td>
+	<td class="message-column"></td>
+	<td class="actions-column">
+		{{ icon_button("", "View details", "search.svg") }}
+	</td>
+</tr>
+{% endblock %}
+
+{% block main %}
+<main>
+	<section class="tool-bar-container" aria-label="Event toolbar">
+		<div class="tool-bar">
+			{{ icon_button("refresh-button", "Refresh events", "refresh.svg", "Refresh") }}
+			<div class="filter-group">
+				<label for="level-filter">Level</label>
+				<select id="level-filter">
+					<option value="">All</option>
+					<option value="trace">Trace</option>
+					<option value="debug">Debug</option>
+					<option value="info">Info</option>
+					<option value="warn">Warn</option>
+					<option value="error">Error</option>
+					<option value="fatal">Fatal</option>
+				</select>
+			</div>
+		</div>
+	</section>
+
+	<div class="main-window">
+		{{ page_turner() }}
+
+		<div class="table-container icon-text-color">
+			<table>
+				<thead>
+					<tr>
+						<th>Time</th>
+						<th>Level</th>
+						<th>Source</th>
+						<th>Message</th>
+						<th>Actions</th>
+					</tr>
+				</thead>
+				<tbody id="events-table"></tbody>
+			</table>
+			<p id="events-empty" class="hidden">No events for the selected filters.</p>
+		</div>
+	</div>
+</main>
+
+<div class="modal hidden" id="event-modal" role="dialog" aria-modal="true" aria-labelledby="event-modal-title">
+	<div class="modal-content">
+		<header>
+			<h2 id="event-modal-title">Event Details</h2>
+			<button id="close-modal" aria-label="Close"></button>
+		</header>
+		<section>
+			<p><strong>Time:</strong> <span id="modal-time"></span></p>
+			<p><strong>Level:</strong> <span id="modal-level"></span></p>
+			<p><strong>Source:</strong> <span id="modal-source"></span></p>
+			<p><strong>Process:</strong> <span id="modal-process"></span></p>
+			<p><strong>Thread:</strong> <span id="modal-thread"></span></p>
+			<p><strong>Message:</strong></p>
+			<pre id="modal-message"></pre>
+		</section>
+	</div>
+</div>
+{% endblock main %}

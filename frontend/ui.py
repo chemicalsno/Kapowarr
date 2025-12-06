@@ -96,6 +96,11 @@ def ui_tasks():
     return render('tasks.html')
 
 
+@ui.route('/system/events', methods=methods)
+def ui_events():
+    return render('system_events.html')
+
+
 @ui.route('/settings', methods=methods)
 def ui_settings():
     return redirect(f'{Server.url_base}/settings/mediamanagement')
