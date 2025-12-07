@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from asyncio import gather, run
+from asyncio import TimeoutError, gather, run, wait_for
 import requests
 from typing import Dict, List, Tuple, Union
 
@@ -306,8 +306,8 @@ class SearchLibgenPlus(SearchSource):
             else self.issue_number
         )
 
-        try:
-            file_results: list[ResultFile] = await LibgenSearch().search_comicvine_id(
+        async def _run_libgen_search() -> list[ResultFile]:
+            return await LibgenSearch().search_comicvine_id(
                 query=self.query,
                 api_key=settings.sv.comicvine_api_key,
                 id=volume_data.comicvine_id,
@@ -320,6 +320,19 @@ class SearchLibgenPlus(SearchSource):
                     else None
                 ),
             )
+
+        try:
+            file_results: list[ResultFile] = await wait_for(
+                _run_libgen_search(),
+                timeout=30
+            )
+        except TimeoutError:
+            LOGGER.warning(
+                "Libgen+ search timed out after 30s for volume %s (%s)",
+                volume_data.title,
+                volume_data.comicvine_id
+            )
+            return []
         except requests.exceptions.RequestException as exc:
             LOGGER.warning(
                 "Libgen+ request failed for volume %s (%s): %s",
@@ -597,6 +610,10 @@ def manual_search(
             if s not in gc_sources + hydra_sources
         ]
 
+        LOGGER.debug(f"GetComics sources: {[s.source_name for s in gc_sources]}")
+        LOGGER.debug(f"Hydra sources: {[s.source_name for s in hydra_sources]}")
+        LOGGER.debug(f"Other sources: {[s.source_name for s in other_sources]}")
+
         # Always run all formats for GetComics and any non-Hydra/non-GC
         # sources. This keeps GC behaviour unchanged and avoids surprises for
         # other providers.
@@ -605,13 +622,6 @@ def manual_search(
             search_results.extend(run(_search_queries_for_sources(
                 all_queries,
                 gc_sources,
-                volume,
-                issue_id
-            )))
-        if other_sources:
-            search_results.extend(run(_search_queries_for_sources(
-                all_queries,
-                other_sources,
                 volume,
                 issue_id
             )))
@@ -666,6 +676,14 @@ def manual_search(
                 ))
 
             search_results.extend(hydra_results)
+
+        if other_sources:
+            search_results.extend(run(_search_queries_for_sources(
+                all_queries,
+                other_sources,
+                volume,
+                issue_id
+            )))
 
         # Deduplicate combined results by link, as search_multiple_queries did
         deduped_results: List[SearchResultData] = []
