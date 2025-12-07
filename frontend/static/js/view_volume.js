@@ -328,7 +328,13 @@ function showManualSearch(api_key, issue_id=null) {
 
 	fetchAPI(url, api_key)
 	.then(json => {
-		json.result.forEach(result => {
+		// Update window title with formatted search context
+		const windowTitle = document.querySelector('#manual-search-window h2');
+		if (windowTitle && json.result.title) {
+			windowTitle.innerText = json.result.title;
+		}
+
+		json.result.result.forEach(result => {
 			const entry = ViewEls.pre_build.manual_search.cloneNode(true);
 			tbody.appendChild(entry);
 

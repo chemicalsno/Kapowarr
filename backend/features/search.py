@@ -366,6 +366,7 @@ def manual_search(
     }
     issue_number: Union[str, None] = None
     calculated_issue_number: Union[float, None] = None
+    issue_title: Union[str, None] = None
 
     if issue_id and volume_data.special_version in (
         SpecialVersion.NORMAL,
@@ -374,12 +375,19 @@ def manual_search(
         issue_data = volume.get_issue(issue_id).get_data()
         issue_number = issue_data.issue_number
         calculated_issue_number = issue_data.calculated_issue_number
+        issue_title = issue_data.title
 
-    LOGGER.info(
-        'Starting manual search: %s (%d) %s',
-        volume_data.title, volume_data.year,
-        f'#{issue_number}' if issue_number else ''
-    )
+    # Format: "Manual Search: East of West - 06 - Six: To Do Justly, and to Love Mercy"
+    if issue_number and issue_title:
+        # Format issue number with leading zero if single digit
+        formatted_issue = f"{int(float(issue_number)):02d}" if issue_number else issue_number
+        search_title_display = f"{volume_data.title} - {formatted_issue} - {issue_title}"
+        LOGGER.info('Manual Search: %s', search_title_display)
+    else:
+        year_part = f" ({volume_data.year})" if volume_data.year else ""
+        issue_part = f" #{issue_number}" if issue_number else ""
+        search_title_display = f"{volume_data.title}{year_part}{issue_part}"
+        LOGGER.info('Manual Search: %s', search_title_display)
 
     for title in (volume_data.title, volume_data.alt_title):
         if not title:
@@ -525,9 +533,15 @@ def manual_search(
         ))
 
         LOGGER.debug('Manual search results: %s', results)
-        return results
+        return {
+            'title': search_title_display,
+            'result': results
+        }
 
-    return []
+    return {
+        'title': search_title_display,
+        'result': []
+    }
 
 
 def auto_search(
@@ -580,7 +594,7 @@ def auto_search(
 
     search_results = [
         r
-        for r in manual_search(volume_id, issue_id)
+        for r in manual_search(volume_id, issue_id)['result']
         if r['match'] and _matches_allowed_formats(r)
     ]
 

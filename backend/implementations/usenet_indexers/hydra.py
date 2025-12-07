@@ -98,11 +98,42 @@ class HydraSearchSource(SearchSource):
             LOGGER.warning("No channel found in NZBHydra2 response")
             return []
 
+        # Extract key search terms from query for relevance filtering
+        # Remove common words and special characters
+        query_words = set(re.sub(r'[^\w\s]', ' ', self.query.lower()).split())
+        # Remove common filler words
+        query_words -= {'vol', 'no', 'the', 'of', 'a', 'an', 'and', 'tpb', 'hc'}
+        # Remove pure numbers as they're too generic
+        query_words = {w for w in query_words if not w.isdigit()}
+
+        LOGGER.debug(f"Hydra filter - Query: '{self.query}' → Keywords: {query_words}")
+
         for item in channel.findall('item'):
             try:
                 result = self._parse_item(item)
-                if result:
-                    results.append(result)
+                if not result:
+                    continue
+
+                # Filter out obviously irrelevant results
+                # Check if series name has at least some overlap with query
+                series_words = set(result['series'].lower().split())
+                matching_words = query_words & series_words
+
+                # For multi-word queries, require at least 2 words to match
+                # For single-word queries, require the word to match
+                min_matches = min(2, len(query_words))
+                LOGGER.debug(
+                    f"Hydra filter - Series: '{result['series']}' → "
+                    f"Matching: {matching_words} ({len(matching_words)}/{min_matches})"
+                )
+                if len(matching_words) < min_matches:
+                    LOGGER.debug(
+                        f"Filtering irrelevant result: '{result['display_title']}' "
+                        f"(only {len(matching_words)} words match, need {min_matches})"
+                    )
+                    continue
+
+                results.append(result)
             except Exception as e:
                 LOGGER.warning(f"Failed to parse NZBHydra2 item: {e}")
                 continue
