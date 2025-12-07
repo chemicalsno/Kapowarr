@@ -210,6 +210,22 @@ class SearchGetComics(SearchSource):
 class SearchLibgenPlus(SearchSource):
     source_name = 'Libgen+'
 
+    def init_context(
+        self,
+        volume: Union[Volume, None] = None,
+        issue_id: Union[int, None] = None
+    ) -> None:
+        self.volume = volume
+        self.issue_id = issue_id
+        if issue_id is not None:
+            try:
+                self.issue_number = Issue(issue_id).get_data().calculated_issue_number
+            except Exception:
+                self.issue_number = None
+        else:
+            self.issue_number = None
+        return
+
     def _build_result_from_file(
         self,
         file_result: ResultFile,
@@ -272,7 +288,10 @@ class SearchLibgenPlus(SearchSource):
         if not settings.sv.enable_libgen:
             return []
 
-        volume = self.volume
+        volume = getattr(self, "volume", None)
+        if volume is None:
+            return []
+
         volume_data = volume.get_data()
 
         # Parse libgen_series_id from comma-separated string to list of ints
@@ -293,10 +312,11 @@ class SearchLibgenPlus(SearchSource):
             issue_number=issue_number,
             libgen_series_id=libgen_series_id,
             libgen_site_url=Constants.LIBGEN_SITE_URL,
-            flaresolverr_url=settings.sv.flaresolverr_base_url
-            if settings.sv.flaresolverr_base_url
-            else None,
-            cv_cache=ComicVine().cache,
+            flaresolverr_url=(
+                settings.sv.flaresolverr_base_url
+                if settings.sv.flaresolverr_base_url
+                else None
+            ),
         )
 
         results: List[SearchResultData] = []
@@ -421,7 +441,9 @@ def _build_hydra_issue_queries(
 
 async def _search_queries_for_sources(
     queries: Tuple[str, ...],
-    sources: List[SearchSource.__class__]
+    sources: List[SearchSource.__class__],
+    volume: Union[Volume, None] = None,
+    issue_id: Union[int, None] = None
 ) -> List[SearchResultData]:
     """Run a set of queries against a specific list of sources.
     
@@ -438,11 +460,13 @@ async def _search_queries_for_sources(
     )
     
     async with AsyncSession() as session:
-        searches = [
-            Source(query).search(session)
-            for Source in sources
-            for query in queries
-        ]
+        searches = []
+        for Source in sources:
+            for query in queries:
+                src = Source(query)
+                if hasattr(src, "init_context"):
+                    src.init_context(volume=volume, issue_id=issue_id)
+                searches.append(src.search(session))
         LOGGER.debug(f"Executing {len(searches)} search task(s)")
         responses = await gather(*searches)
     
@@ -561,12 +585,16 @@ def manual_search(
         if gc_sources:
             search_results.extend(run(_search_queries_for_sources(
                 all_queries,
-                gc_sources
+                gc_sources,
+                volume,
+                issue_id
             )))
         if other_sources:
             search_results.extend(run(_search_queries_for_sources(
                 all_queries,
-                other_sources
+                other_sources,
+                volume,
+                issue_id
             )))
 
         # For Hydra/Usenet, stage queries: first run specific, Hydra-friendly
@@ -597,21 +625,25 @@ def manual_search(
                     hydra_queries = hydra_issue_queries
 
             if len(hydra_queries) > 1:
-                staged_queries = hydra_queries[:-1]
+                hydra_issue_queries = hydra_queries[:-1]
                 title_only = (hydra_queries[-1],)
             else:
-                staged_queries = hydra_queries
+                hydra_issue_queries = hydra_queries
                 title_only = tuple()
 
             hydra_results = run(_search_queries_for_sources(
-                staged_queries,
-                hydra_sources
-            )) if staged_queries else []
+                hydra_issue_queries,
+                hydra_sources,
+                volume,
+                issue_id
+            )) if hydra_issue_queries else []
 
             if not hydra_results and title_only:
                 hydra_results = run(_search_queries_for_sources(
                     title_only,
-                    hydra_sources
+                    hydra_sources,
+                    volume,
+                    issue_id
                 ))
 
             search_results.extend(hydra_results)

@@ -159,6 +159,9 @@ class ComicVine:
         'start_year'
     ))
 
+    # Shared in-memory cache for callers that want to reuse ComicVine lookups
+    _shared_cache: Dict[str, Any] = {}
+
     def __init__(self, comicvine_api_key: Union[str, None] = None) -> None:
         """Start interacting with ComicVine.
 
@@ -177,6 +180,9 @@ class ComicVine:
             raise InvalidComicVineApiKey
 
         self.date_type = settings.date_type.value
+
+        # Expose a simple shared cache so external callers can reuse responses
+        self.cache = self._shared_cache
 
         self.ssn = Session()
         self._params = {'format': 'json', 'api_key': api_key}

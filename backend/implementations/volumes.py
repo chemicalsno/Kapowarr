@@ -310,6 +310,7 @@ class Volume:
             """
             SELECT
                 id, comicvine_id,
+                libgen_series_id,
                 title, alt_title,
                 year, publisher, volume_number,
                 description, site_url,

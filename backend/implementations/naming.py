@@ -456,6 +456,7 @@ def check_mock_filename(
                 VolumeData(
                     id=0,
                     comicvine_id=123,
+                    libgen_series_id=None,
                     title="Spider-Man",
                     alt_title="Spiderman",
                     year=2023,
