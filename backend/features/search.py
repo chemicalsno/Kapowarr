@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from asyncio import gather, run
+import requests
 from typing import Dict, List, Tuple, Union
 
 from libgencomics import LibgenSearch, ResultFile
@@ -305,19 +306,37 @@ class SearchLibgenPlus(SearchSource):
             else self.issue_number
         )
 
-        file_results: list[ResultFile] = await LibgenSearch().search_comicvine_id(
-            query=self.query,
-            api_key=settings.sv.comicvine_api_key,
-            id=volume_data.comicvine_id,
-            issue_number=issue_number,
-            libgen_series_id=libgen_series_id,
-            libgen_site_url=Constants.LIBGEN_SITE_URL,
-            flaresolverr_url=(
-                settings.sv.flaresolverr_base_url
-                if settings.sv.flaresolverr_base_url
-                else None
-            ),
-        )
+        try:
+            file_results: list[ResultFile] = await LibgenSearch().search_comicvine_id(
+                query=self.query,
+                api_key=settings.sv.comicvine_api_key,
+                id=volume_data.comicvine_id,
+                issue_number=issue_number,
+                libgen_series_id=libgen_series_id,
+                libgen_site_url=Constants.LIBGEN_SITE_URL,
+                flaresolverr_url=(
+                    settings.sv.flaresolverr_base_url
+                    if settings.sv.flaresolverr_base_url
+                    else None
+                ),
+            )
+        except requests.exceptions.RequestException as exc:
+            LOGGER.warning(
+                "Libgen+ request failed for volume %s (%s): %s",
+                volume_data.title,
+                volume_data.comicvine_id,
+                exc
+            )
+            return []
+        except Exception as exc:
+            LOGGER.warning(
+                "Libgen+ search failed for volume %s (%s): %s",
+                volume_data.title,
+                volume_data.comicvine_id,
+                exc,
+                exc_info=True
+            )
+            return []
 
         results: List[SearchResultData] = []
         resulting_libgen_series_ids: set[str] = set()
