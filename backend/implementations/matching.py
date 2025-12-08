@@ -14,6 +14,7 @@ from unicodedata import normalize as unicode_normalize
 
 from backend.base.definitions import IssueData, SpecialVersion, VolumeMetadata
 from backend.base.helpers import force_range
+from backend.base.logging import LOGGER
 from backend.implementations.blocklist import blocklist_contains
 
 if TYPE_CHECKING:
@@ -147,7 +148,14 @@ def fuzzy_title_match(title1: str, title2: str, threshold: float = 0.85) -> bool
     # Use SequenceMatcher for similarity ratio
     ratio = SequenceMatcher(None, clean1, clean2).ratio()
 
-    return ratio >= threshold
+    result = ratio >= threshold
+    LOGGER.debug(
+        f"Fuzzy match: '{title1}' vs '{title2}' → "
+        f"cleaned: '{clean1}' vs '{clean2}' → "
+        f"ratio: {ratio:.3f} (threshold: {threshold}) → {result}"
+    )
+
+    return result
 
 
 def match_title(
@@ -188,15 +196,21 @@ def match_title(
     # Try exact match first
     if allow_contains:
         if clean_title in clean_reference_title:
+            LOGGER.debug(f"Title exact match (contains): '{title1}' contains '{title2}'")
             return True
     else:
         if clean_reference_title == clean_title:
+            LOGGER.debug(f"Title exact match: '{title1}' == '{title2}'")
             return True
 
     # Fall back to fuzzy matching if enabled and exact match failed
     if fuzzy:
-        return fuzzy_title_match(title1, title2)
+        result = fuzzy_title_match(title1, title2)
+        if not result:
+            LOGGER.debug(f"Title match failed: '{title1}' vs '{title2}'")
+        return result
 
+    LOGGER.debug(f"Title match failed (fuzzy disabled): '{title1}' vs '{title2}'")
     return False
 
 
@@ -226,11 +240,23 @@ def match_year(
         bool: Whether the years match.
     """
     if reference_year is None or check_year is None:
-        return conservative
+        result = conservative
+        LOGGER.debug(
+            f"Year match (conservative={conservative}): "
+            f"ref={reference_year}, check={check_year}, end={end_year} → {result} "
+            f"(missing year)"
+        )
+        return result
 
     end_border = end_year or reference_year
+    result = reference_year - 1 <= check_year <= end_border + 1
 
-    return reference_year - 1 <= check_year <= end_border + 1
+    LOGGER.debug(
+        f"Year match: ref={reference_year}, check={check_year}, "
+        f"end={end_year} → range=[{reference_year-1}, {end_border+1}] → {result}"
+    )
+
+    return result
 
 
 def match_volume_number(
@@ -583,6 +609,12 @@ def check_search_result_match(
     Returns:
         SearchResultMatchData: Whether the search result passes the filter.
     """
+    LOGGER.debug(
+        f"Matching: '{result['display_title']}' against "
+        f"volume='{volume_data.title}' ({volume_data.year}) "
+        f"issue={calculated_issue_number}"
+    )
+
     annual = 'annual' in volume_data.title.lower()
 
     if blocklist_contains(result['link']):
@@ -655,6 +687,11 @@ def check_search_result_match(
             # extracted issue number(s) don't match number of searched issue
             return {'match': False, 'match_issue': "Issue numbers don't match"}
 
+    LOGGER.debug(
+        f"Match SUCCESS: '{result['display_title']}' → "
+        f"series='{result['series']}', year={result['year']}, "
+        f"issue={result['issue_number']}"
+    )
     return {'match': True, 'match_issue': None}
 
 

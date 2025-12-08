@@ -185,9 +185,17 @@ class HydraSearchSource(SearchSource):
                 break
 
         # Preprocess title for Usenet naming conventions:
-        # - Replace dots with spaces (common in Usenet titles)
+        # - Replace dots/underscores with spaces
+        # - Replace hyphens with spaces EXCEPT when between numbers (preserve "70-75")
         # - Remove common publisher prefixes
-        clean_title = re.sub(r'[\.\-_]+', ' ', title)
+
+        # First replace dots and underscores with spaces
+        clean_title = re.sub(r'[\.\_]+', ' ', title)
+
+        # Replace hyphens with spaces, but NOT when between digits (preserve issue ranges)
+        # This regex matches hyphens that are NOT between two digits
+        clean_title = re.sub(r'(?<!\d)-|-(?!\d)', ' ', clean_title)
+
         # Remove common publisher prefixes like "DC Comics" at the start
         clean_title = re.sub(
             r'^(DC|Marvel|Image|Dark Horse|IDW|Vertigo|Boom|Dynamite|Valiant)\s*(Comics?)?\s*',
