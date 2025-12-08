@@ -683,23 +683,23 @@ class DownloadHandler(metaclass=Singleton):
         for entry in args_list[:3]:  # Log first 3 for debugging
             LOGGER.debug(f'  Entry: link={entry[0][:50]}..., volume_id={entry[1]}, issue_id={entry[2]}, force={entry[3]}')
 
-        # Batch downloads in chunks of 50 to avoid overwhelming download clients
-        BATCH_SIZE = 50
-        total_batches = (len(args_list) + BATCH_SIZE - 1) // BATCH_SIZE
+        # Batch downloads in chunks to avoid overwhelming download clients
+        batch_size = Settings().sv.download_batch_size
+        total_batches = (len(args_list) + batch_size - 1) // batch_size
 
-        if len(args_list) > BATCH_SIZE:
+        if len(args_list) > batch_size:
             LOGGER.info(
                 f'Batching {len(args_list)} downloads into {total_batches} '
-                f'batches of {BATCH_SIZE}'
+                f'batches of {batch_size}'
             )
 
         async def add_wrapper():
             for batch_num in range(total_batches):
-                start_idx = batch_num * BATCH_SIZE
-                end_idx = min(start_idx + BATCH_SIZE, len(args_list))
+                start_idx = batch_num * batch_size
+                end_idx = min(start_idx + batch_size, len(args_list))
                 batch = args_list[start_idx:end_idx]
 
-                if len(args_list) > BATCH_SIZE:
+                if len(args_list) > batch_size:
                     LOGGER.info(
                         f'Processing batch {batch_num + 1}/{total_batches} '
                         f'({len(batch)} downloads)'

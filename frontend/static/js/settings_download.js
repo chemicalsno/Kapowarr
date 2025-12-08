@@ -12,6 +12,7 @@ function fillSettings(api_key) {
 		document.querySelector('#download-timeout-input').value = ((json.result.failing_download_timeout || 0) / 60) || '';
 		document.querySelector('#seeding-handling-input').value = json.result.seeding_handling;
 		document.querySelector('#delete-downloads-input').checked = json.result.delete_completed_downloads;
+		document.querySelector('#download-batch-size-input').value = json.result.download_batch_size || 10;
 		// Set allowed formats checkboxes
 		const allowedFormats = json.result.allowed_formats || [];
 		document.querySelectorAll('#allowed-formats-group input[type="checkbox"]').forEach(cb => {
@@ -34,6 +35,7 @@ function saveSettings(api_key) {
 		'failing_download_timeout': parseInt(document.querySelector('#download-timeout-input').value || 0) * 60,
 		'seeding_handling': document.querySelector('#seeding-handling-input').value,
 		'delete_completed_downloads': document.querySelector('#delete-downloads-input').checked,
+		'download_batch_size': parseInt(document.querySelector('#download-batch-size-input').value),
 		'allowed_formats': allowedFormats,
 		'service_preference': getServicePreference()
 	};

@@ -89,6 +89,7 @@ class PublicSettingsValues:
     failing_download_timeout: int = 0
     seeding_handling: SeedingHandling = SeedingHandling.COPY
     delete_completed_downloads: bool = True
+    download_batch_size: int = 10
 
     nzbhydra_base_url: str = ''
     nzbhydra_api_key: str = ''
