@@ -658,13 +658,48 @@ def check_search_result_match(
     else:
         issue_number = float('-inf')
 
-    if not match_year(
-        volume_data.year,
-        result['year'],
-        number_to_year.get(force_range(issue_number)[-1]),
-        conservative=True
-    ):
-        return {'match': False, 'match_issue': "Year doesn't match"}
+    # For issue-level searches, use the issue's specific year for tighter matching
+    # For volume-level searches, use the volume year with issue year as end_year
+    if calculated_issue_number is not None:
+        # Issue search - use issue's specific year as reference for tight matching
+        issue_year = number_to_year.get(force_range(issue_number)[-1])
+        if issue_year is not None:
+            # Use issue year for both reference and end (±1 year wiggle room)
+            LOGGER.debug(
+                f"Using issue-specific year for matching: issue #{issue_number} → {issue_year}"
+            )
+            if not match_year(
+                issue_year,
+                result['year'],
+                issue_year,
+                conservative=True
+            ):
+                return {'match': False, 'match_issue': "Year doesn't match issue date"}
+        else:
+            # Fallback to volume year if issue year not available
+            LOGGER.debug(
+                f"Issue year not available for #{issue_number}, using volume year {volume_data.year}"
+            )
+            if not match_year(
+                volume_data.year,
+                result['year'],
+                volume_data.year,
+                conservative=True
+            ):
+                return {'match': False, 'match_issue': "Year doesn't match"}
+    else:
+        # Volume search - use volume year with issue year as end (allows range for long series)
+        end_year = number_to_year.get(force_range(issue_number)[-1])
+        LOGGER.debug(
+            f"Volume search: using year range {volume_data.year} to {end_year}"
+        )
+        if not match_year(
+            volume_data.year,
+            result['year'],
+            end_year,
+            conservative=True
+        ):
+            return {'match': False, 'match_issue': "Year doesn't match"}
 
     if volume_data.special_version in (
         SpecialVersion.NORMAL,
